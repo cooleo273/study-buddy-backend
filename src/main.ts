@@ -4,7 +4,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  try {
+    const app = await NestFactory.create(AppModule);
 
   // Global validation pipe with enhanced options
   app.useGlobalPipes(new ValidationPipe({
@@ -16,7 +17,7 @@ async function bootstrap() {
 
   // Enable CORS
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || process.env.NODE_ENV === 'production' ? false : 'http://localhost:3000',
     credentials: true,
   });
 
@@ -51,9 +52,14 @@ async function bootstrap() {
   // API versioning
   app.setGlobalPrefix('api/v1');
 
-  await app.listen(3000);
-  console.log(`🚀 Server running on: http://localhost:3000`);
-  console.log(`📚 API Documentation: http://localhost:3000/api/docs`);
-  console.log(`❤️  Health Check: http://localhost:3000/api/v1/health`);
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+  console.log(`🚀 Server running on: http://localhost:${port}`);
+  console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
+  console.log(`❤️  Health Check: http://localhost:${port}/api/v1/health`);
+  } catch (error) {
+    console.error('❌ Error starting server:', error);
+    process.exit(1);
+  }
 }
 bootstrap();
