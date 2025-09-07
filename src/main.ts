@@ -31,6 +31,7 @@ async function bootstrap() {
     .addTag('health', 'Health check endpoints')
     .addTag('uploads', 'File upload endpoints')
     .addServer('http://localhost:3000', 'Development server')
+    .addServer('https://study-buddy-backend-black.vercel.app', 'Production server')
     .addBearerAuth(
       {
         type: 'http',
@@ -48,11 +49,11 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   // API versioning
-  // app.setGlobalPrefix('api/v1'); // Temporarily disabled for easier testing
+  app.setGlobalPrefix('api/v1');
 
   await app.listen(3000);
   console.log(`🚀 Server running on: http://localhost:3000`);
   console.log(`📚 API Documentation: http://localhost:3000/api`);
-  console.log(`❤️  Health Check: http://localhost:3000/health`);
+  console.log(`❤️  Health Check: http://localhost:3000/api/v1/health`);
 }
 bootstrap();
