@@ -56,4 +56,15 @@ export class HealthController {
   live() {
     return this.health.check([]);
   }
+
+  @Get('test')
+  @ApiOperation({ summary: 'Simple test endpoint' })
+  @ApiResponse({ status: 200, description: 'Test successful' })
+  test() {
+    return {
+      message: 'API is working!',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development'
+    };
+  }
 }
