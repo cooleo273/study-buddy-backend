@@ -46,14 +46,14 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api/docs', app, document);
 
   // API versioning
   app.setGlobalPrefix('api/v1');
 
   await app.listen(3000);
   console.log(`🚀 Server running on: http://localhost:3000`);
-  console.log(`📚 API Documentation: http://localhost:3000/api`);
+  console.log(`📚 API Documentation: http://localhost:3000/api/docs`);
   console.log(`❤️  Health Check: http://localhost:3000/api/v1/health`);
 }
 bootstrap();
