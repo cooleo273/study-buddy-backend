@@ -66,4 +66,69 @@ export class AiController {
       res.end();
     }
   }
+
+  @Post('test-key')
+  @ApiOperation({
+    summary: 'Test AI API Key',
+    description: 'Test if the Gemini API key is properly configured'
+  })
+  @ApiResponse({ status: 200, description: 'API key is valid' })
+  @ApiResponse({ status: 400, description: 'API key is invalid or not configured' })
+  async testApiKey() {
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      throw new BadRequestException('GEMINI_API_KEY environment variable is not set');
+    }
+
+    if (apiKey === 'your-gemini-api-key-here') {
+      throw new BadRequestException('GEMINI_API_KEY is still set to placeholder value. Please set a valid API key from Google AI Studio.');
+    }
+
+    try {
+      // Make a simple test request to verify the key works
+      const testRequest = {
+        contents: [{
+          parts: [{
+            text: 'Hello'
+          }]
+        }],
+        generationConfig: {
+          maxOutputTokens: 10,
+        }
+      };
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(testRequest),
+      });
+
+      if (!response.ok) {
+        if (response.status === 400) {
+          throw new BadRequestException('Invalid API key or request format');
+        } else if (response.status === 401) {
+          throw new BadRequestException('API key is unauthorized - please check your Google AI Studio key');
+        } else if (response.status === 403) {
+          throw new BadRequestException('API key does not have permission to access Gemini API');
+        } else {
+          throw new BadRequestException(`API key test failed with status: ${response.status}`);
+        }
+      }
+
+      return {
+        status: 'success',
+        message: 'Gemini API key is valid and working',
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to test API key');
+    }
+  }
 }

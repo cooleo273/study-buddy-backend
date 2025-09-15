@@ -53,7 +53,7 @@ export class GenerateResponseDto {
   response: string;
 
   @ApiProperty({
-    example: 'gemini-pro',
+    example: 'gemini-1.5-flash',
     description: 'The AI model used'
   })
   model: string;

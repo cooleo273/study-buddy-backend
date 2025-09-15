@@ -31,9 +31,10 @@ export class AuthService {
       });
 
       // Generate tokens
-      const payload = { userId: user.id, email: user.email };
+      const payload = { userId: user.id, email: user.email, type: 'access' };
+      const refreshPayload = { userId: user.id, email: user.email, type: 'refresh' };
       const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
-      const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+      const refreshToken = this.jwtService.sign(refreshPayload, { expiresIn: '7d' });
 
       // Create user response
       const userResponse: AuthUserResponseDto = {
@@ -64,9 +65,10 @@ export class AuthService {
     }
 
     // Generate tokens
-    const payload = { userId: user.id, email: user.email };
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+    const accessPayload = { userId: user.id, email: user.email, type: 'access' };
+    const refreshPayload = { userId: user.id, email: user.email, type: 'refresh' };
+    const accessToken = this.jwtService.sign(accessPayload, { expiresIn: '15m' });
+    const refreshToken = this.jwtService.sign(refreshPayload, { expiresIn: '7d' });
 
     // Create user response
     const userResponse: AuthUserResponseDto = {
@@ -80,5 +82,47 @@ export class AuthService {
       refreshToken,
       user: userResponse,
     };
+  }
+
+  async refreshToken(refreshToken: string): Promise<JwtAuthResponseDto> {
+    try {
+      // Verify the refresh token
+      const payload = this.jwtService.verify(refreshToken);
+
+      // Validate token type
+      if (payload.type !== 'refresh') {
+        throw new UnauthorizedException('Invalid token type');
+      }
+
+      // Get user from database
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.userId },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      // Generate new tokens
+      const newPayload = { userId: user.id, email: user.email, type: 'access' };
+      const newRefreshPayload = { userId: user.id, email: user.email, type: 'refresh' };
+      const accessToken = this.jwtService.sign(newPayload, { expiresIn: '15m' });
+      const newRefreshToken = this.jwtService.sign(newRefreshPayload, { expiresIn: '7d' });
+
+      // Create user response
+      const userResponse: AuthUserResponseDto = {
+        id: user.id,
+        email: user.email,
+        name: user.username || user.email.split('@')[0],
+      };
+
+      return {
+        accessToken,
+        refreshToken: newRefreshToken,
+        user: userResponse,
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
   }
 }

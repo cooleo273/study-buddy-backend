@@ -17,8 +17,7 @@ async function bootstrap() {
 
     // Enable CORS
     app.enableCors({
-      origin: process.env.FRONTEND_URL || process.env.NODE_ENV === 'production' ? false : 'http://localhost:3000',
-      credentials: true,
+      origin: '*',
     });
 
     // Swagger configuration
@@ -50,13 +49,13 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
 
     // API versioning
-    app.setGlobalPrefix('api/v1');
+    app.setGlobalPrefix('api');
 
     const port = process.env.PORT || 3000;
     await app.listen(port);
     console.log(`🚀 Server running on: http://localhost:${port}`);
     console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
-    console.log(`❤️  Health Check: http://localhost:${port}/api/v1/health`);
+    console.log(`❤️  Health Check: http://localhost:${port}/api/health`);
   } catch (error) {
     console.error('❌ Error starting server:', error);
     process.exit(1);

@@ -4,7 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'refresh') {
   constructor(private usersService: UsersService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -14,9 +14,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // Validate token type - only access tokens should be used for authentication
-    if (payload.type !== 'access') {
-      throw new UnauthorizedException('Invalid token type. Access tokens only.');
+    // Validate token type - only refresh tokens should be used for token refresh
+    if (payload.type !== 'refresh') {
+      throw new UnauthorizedException('Invalid token type. Refresh tokens only.');
     }
 
     const user = await this.usersService.findUserById(payload.userId);
