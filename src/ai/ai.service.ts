@@ -7,170 +7,316 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly geminiModel = 'gemini-1.5-flash';
   private readonly geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
+  private readonly groqApiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+  private readonly groqModel = 'llama3-8b-8192'; // Using Llama 3 8B as default
 
   constructor(private configService: ConfigService) {}
 
   async generateContent(dto: GenerateRequestDto): Promise<GenerateResponseDto> {
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey) {
-      this.logger.error('GEMINI_API_KEY not found in environment variables');
-      throw new BadRequestException('AI service is not properly configured');
-    }
-
-    // // Check if API key is the placeholder
-    // if (apiKey === 'your-gemini-api-key-here') {
-    //   this.logger.error('GEMINI_API_KEY is still set to placeholder value');
-    //   throw new BadRequestException('AI service API key not configured. Please set a valid GEMINI_API_KEY in your environment variables.');
-    // }
-
+    // Try Gemini first
     try {
-      const requestBody = {
-        contents: [
-          {
-            parts: [
-              {
-                text: dto.systemPrompt
-                  ? `${dto.systemPrompt}\n\nUser: ${dto.message}`
-                  : dto.message
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: dto.parameters?.temperature || 0.7,
-          maxOutputTokens: dto.parameters?.maxTokens || 1000,
-          topP: 0.8,
-          topK: 10,
-        }
-      };
-
-      this.logger.debug(`Making request to Gemini API for message: ${dto.message.substring(0, 50)}...`);
-
-      const response = await fetch(`${this.geminiApiUrl}?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        this.logger.error(`Gemini API error: ${response.status} - ${errorText}`);
-
-        if (response.status === 400) {
-          throw new BadRequestException(`Invalid request to AI service: ${errorText}`);
-        } else if (response.status === 401) {
-          throw new BadRequestException('Invalid AI API key');
-        } else if (response.status === 403) {
-          throw new BadRequestException('AI API key does not have permission');
-        } else if (response.status === 429) {
-          throw new BadRequestException('AI service rate limit exceeded');
-        } else {
-          throw new BadRequestException(`AI service error: ${response.status}`);
-        }
-      }
-
-      const data = await response.json();
-
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        this.logger.error('Invalid response structure from Gemini API');
-        throw new BadRequestException('Invalid AI response format');
-      }
-
-      const generatedText = data.candidates[0].content.parts[0].text;
-      const tokensUsed = data.usageMetadata?.totalTokenCount || 0;
-
-      return {
-        response: generatedText,
-        model: this.geminiModel,
-        tokensUsed,
-      };
-
+      return await this.generateWithGemini(dto);
     } catch (error) {
-      this.logger.error(`Error calling Gemini API: ${error.message}`, error.stack);
-      if (error instanceof BadRequestException) {
-        throw error;
+      this.logger.warn(`Gemini failed, trying Groq: ${error.message}`);
+      // Fallback to Groq
+      try {
+        return await this.generateWithGroq(dto);
+      } catch (groqError) {
+        this.logger.error(`Both Gemini and Groq failed. Gemini: ${error.message}, Groq: ${groqError.message}`);
+        throw new BadRequestException('All AI services are currently unavailable');
       }
-      throw new BadRequestException('AI service temporarily unavailable');
     }
   }
 
-  async *streamContent(dto: GenerateRequestDto): AsyncGenerator<string, void, unknown> {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+  private async generateWithGemini(dto: GenerateRequestDto): Promise<GenerateResponseDto> {
+    const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      this.logger.error('GEMINI_API_KEY not found in environment variables');
-      throw new BadRequestException('AI service is not properly configured');
+      throw new BadRequestException('Gemini API key not configured');
     }
 
-    // Check if API key is the placeholder
-    if (apiKey === 'your-gemini-api-key-here') {
-      this.logger.error('GEMINI_API_KEY is still set to placeholder value');
-      throw new BadRequestException('AI service API key not configured');
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: dto.systemPrompt
+                ? `${dto.systemPrompt}\n\nUser: ${dto.message}`
+                : dto.message
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: dto.parameters?.temperature || 0.7,
+        maxOutputTokens: dto.parameters?.maxTokens || 1000,
+        topP: 0.8,
+        topK: 10,
+      }
+    };
+
+    this.logger.debug(`Making request to Gemini API for message: ${dto.message.substring(0, 50)}...`);
+
+    const response = await fetch(`${this.geminiApiUrl}?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      this.logger.error(`Gemini API error: ${response.status} - ${errorText}`);
+
+      if (response.status === 400) {
+        throw new BadRequestException(`Invalid request to Gemini: ${errorText}`);
+      } else if (response.status === 401) {
+        throw new BadRequestException('Invalid Gemini API key');
+      } else if (response.status === 403) {
+        throw new BadRequestException('Gemini API key does not have permission');
+      } else if (response.status === 429) {
+        throw new BadRequestException('Gemini rate limit exceeded');
+      } else {
+        throw new BadRequestException(`Gemini service error: ${response.status}`);
+      }
     }
+
+    const data = await response.json();
+
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      this.logger.error('Invalid response structure from Gemini API');
+      throw new BadRequestException('Invalid Gemini response format');
+    }
+
+    const generatedText = data.candidates[0].content.parts[0].text;
+    const tokensUsed = data.usageMetadata?.totalTokenCount || 0;
+
+    return {
+      response: generatedText,
+      model: this.geminiModel,
+      tokensUsed,
+    };
+  }
+
+  private async generateWithGroq(dto: GenerateRequestDto): Promise<GenerateResponseDto> {
+    const apiKey = process.env.GROQ_API_KEY;
+
+    if (!apiKey) {
+      throw new BadRequestException('Groq API key not configured');
+    }
+
+    const messages = [];
+    if (dto.systemPrompt) {
+      messages.push({ role: 'system', content: dto.systemPrompt });
+    }
+    messages.push({ role: 'user', content: dto.message });
+
+    const requestBody = {
+      model: this.groqModel,
+      messages,
+      temperature: dto.parameters?.temperature || 0.7,
+      max_tokens: dto.parameters?.maxTokens || 1000,
+      top_p: 0.8,
+    };
+
+    this.logger.debug(`Making request to Groq API for message: ${dto.message.substring(0, 50)}...`);
+
+    const response = await fetch(this.groqApiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      this.logger.error(`Groq API error: ${response.status} - ${errorText}`);
+
+      if (response.status === 400) {
+        throw new BadRequestException(`Invalid request to Groq: ${errorText}`);
+      } else if (response.status === 401) {
+        throw new BadRequestException('Invalid Groq API key');
+      } else if (response.status === 403) {
+        throw new BadRequestException('Groq API key does not have permission');
+      } else if (response.status === 429) {
+        throw new BadRequestException('Groq rate limit exceeded');
+      } else {
+        throw new BadRequestException(`Groq service error: ${response.status}`);
+      }
+    }
+
+    const data = await response.json();
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      this.logger.error('Invalid response structure from Groq API');
+      throw new BadRequestException('Invalid Groq response format');
+    }
+
+    const generatedText = data.choices[0].message.content;
+    const tokensUsed = data.usage?.total_tokens || 0;
+
+    return {
+      response: generatedText,
+      model: this.groqModel,
+      tokensUsed,
+    };
+  }
+
+  async *streamContent(dto: GenerateRequestDto): AsyncGenerator<string, void, unknown> {
+    // Try Gemini first for streaming
+    try {
+      yield* this.streamWithGemini(dto);
+    } catch (error) {
+      this.logger.warn(`Gemini streaming failed, trying Groq: ${error.message}`);
+      // Fallback to Groq
+      try {
+        yield* this.streamWithGroq(dto);
+      } catch (groqError) {
+        this.logger.error(`Both Gemini and Groq streaming failed. Gemini: ${error.message}, Groq: ${groqError.message}`);
+        throw new BadRequestException('All AI streaming services are currently unavailable');
+      }
+    }
+  }
+
+  private async *streamWithGemini(dto: GenerateRequestDto): AsyncGenerator<string, void, unknown> {
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      throw new BadRequestException('Gemini API key not configured');
+    }
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: dto.systemPrompt
+                ? `${dto.systemPrompt}\n\nUser: ${dto.message}`
+                : dto.message
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: dto.parameters?.temperature || 0.7,
+        maxOutputTokens: dto.parameters?.maxTokens || 2000,
+        topP: 0.8,
+        topK: 10,
+      }
+    };
+
+    this.logger.debug(`Starting streaming request to Gemini API`);
+
+    const response = await fetch(`${this.geminiApiUrl}?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      this.logger.error(`Gemini API streaming error: ${response.status} - ${errorText}`);
+      throw new BadRequestException(`Failed to start Gemini streaming: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      this.logger.error('Invalid streaming response structure from Gemini API');
+      throw new BadRequestException('Invalid Gemini streaming response');
+    }
+
+    const generatedText = data.candidates[0].content.parts[0].text;
+
+    // Simulate streaming by chunking the response into sentences/words
+    const chunks = this.chunkText(generatedText);
+    for (const chunk of chunks) {
+      yield chunk;
+      // Add a small delay to simulate streaming
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  private async *streamWithGroq(dto: GenerateRequestDto): AsyncGenerator<string, void, unknown> {
+    const apiKey = process.env.GROQ_API_KEY;
+
+    if (!apiKey) {
+      throw new BadRequestException('Groq API key not configured');
+    }
+
+    const messages = [];
+    if (dto.systemPrompt) {
+      messages.push({ role: 'system', content: dto.systemPrompt });
+    }
+    messages.push({ role: 'user', content: dto.message });
+
+    const requestBody = {
+      model: this.groqModel,
+      messages,
+      temperature: dto.parameters?.temperature || 0.7,
+      max_tokens: dto.parameters?.maxTokens || 2000,
+      stream: true,
+    };
+
+    this.logger.debug(`Starting streaming request to Groq API`);
+
+    const response = await fetch(this.groqApiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      this.logger.error(`Groq API streaming error: ${response.status} - ${errorText}`);
+      throw new BadRequestException(`Failed to start Groq streaming: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new BadRequestException('Failed to get response reader for streaming');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
 
     try {
-      const requestBody = {
-        contents: [
-          {
-            parts: [
-              {
-                text: dto.systemPrompt
-                  ? `${dto.systemPrompt}\n\nUser: ${dto.message}`
-                  : dto.message
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                yield content;
               }
-            ]
+            } catch (e) {
+              // Skip invalid JSON
+              continue;
+            }
           }
-        ],
-        generationConfig: {
-          temperature: dto.parameters?.temperature || 0.7,
-          maxOutputTokens: dto.parameters?.maxTokens || 2000,
-          topP: 0.8,
-          topK: 10,
         }
-      };
-
-      this.logger.debug(`Starting streaming request to Gemini API`);
-
-      const response = await fetch(`${this.geminiApiUrl}?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        this.logger.error(`Gemini API streaming error: ${response.status} - ${errorText}`);
-        throw new BadRequestException(`Failed to start AI streaming: ${response.status}`);
       }
-
-      const data = await response.json();
-
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        this.logger.error('Invalid streaming response structure from Gemini API');
-        throw new BadRequestException('Invalid AI streaming response');
-      }
-
-      const generatedText = data.candidates[0].content.parts[0].text;
-
-      // Simulate streaming by chunking the response into sentences/words
-      const chunks = this.chunkText(generatedText);
-      for (const chunk of chunks) {
-        yield chunk;
-        // Add a small delay to simulate streaming
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-    } catch (error) {
-      this.logger.error(`Error in AI streaming: ${error.message}`, error.stack);
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new BadRequestException('AI streaming service temporarily unavailable');
+    } finally {
+      reader.releaseLock();
     }
   }
 
