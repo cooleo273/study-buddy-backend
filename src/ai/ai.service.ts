@@ -8,21 +8,27 @@ export class AiService {
   private readonly geminiModel = 'gemini-1.5-flash';
   private readonly geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
   private readonly groqApiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly groqModel = 'llama3-8b-8192'; // Using Llama 3 8B as default
+  private readonly groqModel = 'openai/gpt-oss-20b';
 
   constructor(private configService: ConfigService) {}
 
   async generateContent(dto: GenerateRequestDto): Promise<GenerateResponseDto> {
-    // Try Gemini first
+    console.log('AI Service called with:', { message: dto.message.substring(0, 50), hasSystemPrompt: !!dto.systemPrompt });
+
+    // Try Groq first since Gemini is rate limited
     try {
-      return await this.generateWithGemini(dto);
+      console.log('Trying Groq API first...');
+      return await this.generateWithGroq(dto);
     } catch (error) {
-      this.logger.warn(`Gemini failed, trying Groq: ${error.message}`);
-      // Fallback to Groq
+      console.log(`Groq failed: ${error.message}, trying Gemini...`);
+      this.logger.warn(`Groq failed, trying Gemini: ${error.message}`);
+      // Fallback to Gemini
       try {
-        return await this.generateWithGroq(dto);
-      } catch (groqError) {
-        this.logger.error(`Both Gemini and Groq failed. Gemini: ${error.message}, Groq: ${groqError.message}`);
+        console.log('Trying Gemini API...');
+        return await this.generateWithGemini(dto);
+      } catch (geminiError) {
+        console.log(`Both APIs failed. Groq: ${error.message}, Gemini: ${geminiError.message}`);
+        this.logger.error(`Both Groq and Gemini failed. Groq: ${error.message}, Gemini: ${geminiError.message}`);
         throw new BadRequestException('All AI services are currently unavailable');
       }
     }
@@ -30,6 +36,7 @@ export class AiService {
 
   private async generateWithGemini(dto: GenerateRequestDto): Promise<GenerateResponseDto> {
     const apiKey = process.env.GEMINI_API_KEY;
+    console.log('Gemini API key exists:', !!apiKey);
 
     if (!apiKey) {
       throw new BadRequestException('Gemini API key not configured');
@@ -55,7 +62,12 @@ export class AiService {
       }
     };
 
+    console.log('Making Gemini API request...');
     this.logger.debug(`Making request to Gemini API for message: ${dto.message.substring(0, 50)}...`);
+
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     const response = await fetch(`${this.geminiApiUrl}?key=${apiKey}`, {
       method: 'POST',
@@ -63,10 +75,15 @@ export class AiService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
+    console.log('Gemini API response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.log('Gemini API error response:', errorText);
       this.logger.error(`Gemini API error: ${response.status} - ${errorText}`);
 
       if (response.status === 400) {
@@ -83,17 +100,59 @@ export class AiService {
     }
 
     const data = await response.json();
+    console.log('Gemini API response data:', { hasCandidates: !!data.candidates, candidateCount: data.candidates?.length });
 
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      console.log('Invalid Gemini response structure:', data);
       this.logger.error('Invalid response structure from Gemini API');
       throw new BadRequestException('Invalid Gemini response format');
     }
 
     const generatedText = data.candidates[0].content.parts[0].text;
+    console.log('Generated text from Gemini (raw):', generatedText);
+    console.log('Generated text type:', typeof generatedText);
+    console.log('Is array?', Array.isArray(generatedText));
+    console.log('Generated text length:', generatedText?.length);
+    
+    // Handle case where AI returns an array instead of string
+    let processedText = generatedText;
+    if (Array.isArray(generatedText)) {
+      console.log('Processing as array with length:', generatedText.length);
+      // Convert array to a readable string
+      processedText = generatedText.map(item => 
+        typeof item === 'string' ? item : JSON.stringify(item)
+      ).join('\n\n');
+      console.log('Converted array response to string, length:', processedText.length);
+      console.log('Converted response preview:', processedText.substring(0, 200));
+    } else if (typeof generatedText === 'string' && generatedText.startsWith('[') && generatedText.endsWith(']')) {
+      // Handle case where API returns stringified array
+      try {
+        const parsedArray = JSON.parse(generatedText);
+        if (Array.isArray(parsedArray)) {
+          console.log('Processing as stringified array with length:', parsedArray.length);
+          processedText = parsedArray.map(item => 
+            typeof item === 'string' ? item : JSON.stringify(item)
+          ).join('\n\n');
+          console.log('Converted stringified array response to string, length:', processedText.length);
+          console.log('Converted response preview:', processedText.substring(0, 200));
+        }
+      } catch (e) {
+        console.log('Failed to parse as JSON array, treating as regular string');
+      }
+    } else if (typeof generatedText !== 'string') {
+      // Handle other non-string types
+      processedText = String(generatedText);
+      console.log('Converted non-string response to string, length:', processedText.length);
+    } else {
+      console.log('Processing as regular string, length:', processedText.length);
+    }
+    
+    console.log('Final processed response preview:', processedText?.substring(0, 200));
+    
     const tokensUsed = data.usageMetadata?.totalTokenCount || 0;
 
     return {
-      response: generatedText,
+      response: processedText,
       model: this.geminiModel,
       tokensUsed,
     };
@@ -101,6 +160,7 @@ export class AiService {
 
   private async generateWithGroq(dto: GenerateRequestDto): Promise<GenerateResponseDto> {
     const apiKey = process.env.GROQ_API_KEY;
+    console.log('Groq API key exists:', !!apiKey);
 
     if (!apiKey) {
       throw new BadRequestException('Groq API key not configured');
@@ -120,7 +180,12 @@ export class AiService {
       top_p: 0.8,
     };
 
+    console.log('Making Groq API request...');
     this.logger.debug(`Making request to Groq API for message: ${dto.message.substring(0, 50)}...`);
+
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     const response = await fetch(this.groqApiUrl, {
       method: 'POST',
@@ -129,10 +194,16 @@ export class AiService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
+
+    console.log('Groq API response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.log('Groq API error response:', errorText);
       this.logger.error(`Groq API error: ${response.status} - ${errorText}`);
 
       if (response.status === 400) {
@@ -149,17 +220,59 @@ export class AiService {
     }
 
     const data = await response.json();
+    console.log('Groq API response data:', { hasChoices: !!data.choices, choiceCount: data.choices?.length });
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.log('Invalid Groq response structure:', data);
       this.logger.error('Invalid response structure from Groq API');
       throw new BadRequestException('Invalid Groq response format');
     }
 
     const generatedText = data.choices[0].message.content;
+    console.log('Generated text from Groq (raw):', generatedText);
+    console.log('Generated text type:', typeof generatedText);
+    console.log('Is array?', Array.isArray(generatedText));
+    console.log('Generated text from Groq (truncated):', generatedText?.substring(0, 100));
+    
+    // Handle case where AI returns an array instead of string
+    let processedText = generatedText;
+    if (Array.isArray(generatedText)) {
+      console.log('Processing as array with length:', generatedText.length);
+      // Convert array to a readable string
+      processedText = generatedText.map(item => 
+        typeof item === 'string' ? item : JSON.stringify(item)
+      ).join('\n\n');
+      console.log('Converted array response to string, length:', processedText.length);
+      console.log('Converted response preview:', processedText.substring(0, 200));
+    } else if (typeof generatedText === 'string' && generatedText.startsWith('[') && generatedText.endsWith(']')) {
+      // Handle case where API returns stringified array
+      try {
+        const parsedArray = JSON.parse(generatedText);
+        if (Array.isArray(parsedArray)) {
+          console.log('Processing as stringified array with length:', parsedArray.length);
+          processedText = parsedArray.map(item => 
+            typeof item === 'string' ? item : JSON.stringify(item)
+          ).join('\n\n');
+          console.log('Converted stringified array response to string, length:', processedText.length);
+          console.log('Converted response preview:', processedText.substring(0, 200));
+        }
+      } catch (e) {
+        console.log('Failed to parse as JSON array, treating as regular string');
+      }
+    } else if (typeof generatedText !== 'string') {
+      // Handle other non-string types
+      processedText = String(generatedText);
+      console.log('Converted non-string response to string, length:', processedText.length);
+    } else {
+      console.log('Processing as regular string, length:', processedText.length);
+    }
+    
+    console.log('Final processed response preview:', processedText?.substring(0, 200));
+    
     const tokensUsed = data.usage?.total_tokens || 0;
 
     return {
-      response: generatedText,
+      response: processedText,
       model: this.groqModel,
       tokensUsed,
     };
@@ -194,7 +307,7 @@ export class AiService {
           parts: [
             {
               text: dto.systemPrompt
-                ? `${dto.systemPrompt}\n\nUser: ${dto.message}`
+                ? `${dto.systemPrompt}\n\nUser: ${dto.systemPrompt}\n\nUser: ${dto.message}`
                 : dto.message
             }
           ]

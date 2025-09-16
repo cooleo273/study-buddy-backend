@@ -67,6 +67,24 @@ export class AiController {
     }
   }
 
+  @Post('test-generate')
+  @UseGuards() // Remove auth for testing
+  @ApiOperation({
+    summary: 'Test AI generation (no auth)',
+    description: 'Test AI content generation without authentication for debugging'
+  })
+  @ApiResponse({ status: 200, description: 'Test response generated' })
+  async testGenerate(@Body() dto: GenerateRequestDto) {
+    try {
+      return await this.aiService.generateContent(dto);
+    } catch (error) {
+      return {
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
   @Post('test-key')
   @ApiOperation({
     summary: 'Test AI API Key',

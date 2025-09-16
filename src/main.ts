@@ -30,6 +30,7 @@ async function bootstrap() {
       .addTag('chat', 'Chat session management endpoints')
       .addTag('health', 'Health check endpoints')
       .addTag('uploads', 'File upload endpoints')
+      .addTag('learning-plans', 'Learning plans and milestones management')
       .addServer('http://localhost:3000', 'Development server')
       .addServer('https://study-buddy-backend-black.vercel.app', 'Production server')
       .addBearerAuth(

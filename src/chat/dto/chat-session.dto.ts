@@ -1,34 +1,71 @@
-import { IsNotEmpty, IsString, IsOptional, IsNumber, Min } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsNumber, Min, IsArray, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
+export class ChatMessageDto {
+  @ApiProperty({ example: 'user', description: 'Role of the message sender', enum: ['user', 'assistant'] })
+  @IsString()
+  @IsIn(['user', 'assistant'])
+  role: 'user' | 'assistant';
+
+  @ApiProperty({ example: 'Can you help me solve 2x + 3 = 7?', description: 'Message content' })
+  @IsString()
+  @IsNotEmpty()
+  content: string;
+
+  @ApiPropertyOptional({ example: '2025-09-16T10:30:00.000Z', description: 'Message creation timestamp' })
+  @IsString()
+  @IsOptional()
+  createdAt?: string;
+
+  @ApiPropertyOptional({ example: 'conv_123_001', description: 'Conversation turn ID to group related messages' })
+  @IsString()
+  @IsOptional()
+  conversationId?: string;
+}
+
 export class CreateChatSessionDto {
-  @ApiProperty({ example: 'Math homework help', description: 'Chat session topic or title' })
+  @ApiPropertyOptional({ example: 'Math homework help', description: 'Chat session topic or title' })
   @IsString()
   @IsOptional()
   topic?: string;
 
-  @ApiProperty({ example: 'Can you help me solve 2x + 3 = 7?', description: 'User message' })
-  @IsString()
-  @IsNotEmpty()
-  userMessage: string;
-
-  @ApiPropertyOptional({ example: 'The solution is x = 2. Let me explain step by step...', description: 'AI response' })
-  @IsString()
+  @ApiPropertyOptional({
+    example: [
+      {
+        role: 'user',
+        content: 'Can you help me solve 2x + 3 = 7?',
+        createdAt: '2025-09-16T10:30:00.000Z'
+      },
+      {
+        role: 'assistant',
+        content: 'The solution is x = 2. Let me explain step by step...',
+        createdAt: '2025-09-16T10:30:05.000Z'
+      }
+    ],
+    description: 'Array of chat messages',
+    type: [ChatMessageDto]
+  })
+  @IsArray()
   @IsOptional()
-  aiResponse?: string;
+  messages?: ChatMessageDto[];
 }
 
 export class UpdateChatSessionDto {
-  @ApiPropertyOptional({ example: 'Updated user message', description: 'Updated user message' })
-  @IsString()
+  @ApiPropertyOptional({
+    example: [
+      {
+        role: 'user',
+        content: 'Updated user message',
+        createdAt: '2025-09-16T10:30:00.000Z'
+      }
+    ],
+    description: 'Updated array of chat messages',
+    type: [ChatMessageDto]
+  })
+  @IsArray()
   @IsOptional()
-  userMessage?: string;
-
-  @ApiPropertyOptional({ example: 'Updated AI response', description: 'Updated AI response' })
-  @IsString()
-  @IsOptional()
-  aiResponse?: string;
+  messages?: ChatMessageDto[];
 
   @ApiPropertyOptional({ example: 'Advanced algebra help', description: 'Updated topic' })
   @IsString()
