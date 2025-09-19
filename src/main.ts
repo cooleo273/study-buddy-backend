@@ -23,6 +23,9 @@ async function bootstrap() {
         origin: '*',
       });
 
+      // API versioning - set prefix before creating Swagger docs so the OpenAPI spec contains the prefix
+      app.setGlobalPrefix('api');
+
       // Swagger configuration - only enable in development
       if (process.env.NODE_ENV == 'production' && process.env.VERCEL_ENV == 'production') {
         const config = new DocumentBuilder()
@@ -113,10 +116,7 @@ async function bootstrap() {
         console.log('ℹ️ API documentation available at /api/docs-json');
       }
 
-      // API versioning
-      app.setGlobalPrefix('api');
-
-      await app.init();
+  await app.init();
     }
 
     return app;
