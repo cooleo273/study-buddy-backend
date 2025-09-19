@@ -7,7 +7,7 @@ import {
   Res,
   Header,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Response as ExpressResponse } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { AiService } from './ai.service';
@@ -51,7 +51,7 @@ export class AiController {
   @Header('Content-Type', 'text/event-stream')
   @Header('Cache-Control', 'no-cache')
   @Header('Connection', 'keep-alive')
-  async stream(@Body() dto: StreamRequestDto, @Res() res: Response): Promise<void> {
+  async stream(@Body() dto: StreamRequestDto, @Res() res: ExpressResponse): Promise<void> {
     try {
       res.write('data: [START]\n\n');
 
