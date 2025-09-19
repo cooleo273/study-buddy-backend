@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { extname } from 'path';
 import { diskStorage } from 'multer';
-import { v4 as uuid } from 'uuid';
 
 export interface FileUploadResult {
   filename: string;
@@ -13,13 +12,35 @@ export interface FileUploadResult {
 
 @Injectable()
 export class UploadService {
+  private uuidGenerator: () => string;
+
+  constructor() {
+    this.initializeUuidGenerator();
+  }
+
+  private initializeUuidGenerator() {
+    // Use Node.js built-in crypto.randomUUID() as primary method
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      this.uuidGenerator = () => crypto.randomUUID();
+    } else {
+      // Fallback for environments without crypto.randomUUID
+      this.uuidGenerator = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+    }
+  }
+
   createMulterOptions() {
     return {
       storage: diskStorage({
         destination: './uploads',
         filename: (req, file, callback) => {
           const fileExtName = extname(file.originalname);
-          const fileName = `${uuid()}${fileExtName}`;
+          const fileName = `${this.uuidGenerator()}${fileExtName}`;
           callback(null, fileName);
         },
       }),
