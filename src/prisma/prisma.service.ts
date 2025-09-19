@@ -76,14 +76,17 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   get $transaction() {
-    return this.prisma?.$transaction || (async () => {});
+    const tx = this.prisma?.$transaction;
+    return tx ? tx.bind(this.prisma) : (async () => {});
   }
 
   get $connect() {
-    return this.prisma?.$connect || (async () => {});
+    const connect = this.prisma?.$connect;
+    return connect ? connect.bind(this.prisma) : (async () => {});
   }
 
   get $disconnect() {
-    return this.prisma?.$disconnect || (async () => {});
+    const disconnect = this.prisma?.$disconnect;
+    return disconnect ? disconnect.bind(this.prisma) : (async () => {});
   }
 }

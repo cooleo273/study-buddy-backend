@@ -308,20 +308,25 @@ Constraints:
         orderIndex: typeof c.orderIndex === 'number' ? c.orderIndex : idx,
       }));
 
-    // Create in DB
-    const created = await this.prisma.$transaction(
-      normalized.map(course => this.prisma.course.create({
-        data: {
-          milestoneId,
-          title: course.title,
-          description: course.description,
-          content: course.content,
-          duration: course.duration,
-          difficulty: course.difficulty,
-          orderIndex: course.orderIndex,
-        },
-      }))
-    );
+    // Create in DB using transaction callback to preserve client context in serverless environments
+    const created = await this.prisma.$transaction(async (tx: any) => {
+      const results: any[] = [];
+      for (const course of normalized) {
+        const r = await tx.course.create({
+          data: {
+            milestoneId,
+            title: course.title,
+            description: course.description,
+            content: course.content,
+            duration: course.duration,
+            difficulty: course.difficulty,
+            orderIndex: course.orderIndex,
+          },
+        });
+        results.push(r);
+      }
+      return results;
+    });
 
     this.logger.log(`Generated ${created.length} AI courses for milestone ${milestoneId}`);
 

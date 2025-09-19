@@ -223,18 +223,20 @@ export class LearningPlansController {
     try {
       return await this.learningPlansService.generateCoursesForMilestone(req.user.id, planId, milestoneId, generateCoursesDto);
     } catch (err) {
-      // If AI service or parsing returned BadRequest, map to 503 with actionable info
-      console.error('Error generating courses:', err?.message ?? err);
-      // Importing types here to avoid top-level change
-      const { BadRequestException } = require('@nestjs/common');
+      // Create a short error id to correlate logs with client-side failure
+      const crypto = require('crypto');
+      const errorId = crypto.randomBytes(4).toString('hex');
+      console.error(`ErrorId=${errorId} - Error generating courses:`, err?.stack ?? err?.message ?? err);
+
+      // Map AI provider BadRequest -> 503 with hint
+      const { BadRequestException, ServiceUnavailableException } = require('@nestjs/common');
       if (err instanceof BadRequestException || (err && err.status === 400)) {
-        // Return 503 Service Unavailable with hint to check AI provider keys and quota
-        const { ServiceUnavailableException } = require('@nestjs/common');
-        throw new ServiceUnavailableException('AI service failed to generate courses. Check GROQ_API_KEY / GEMINI_API_KEY, quota, and request format. See server logs for details.');
+        throw new ServiceUnavailableException(`AI service failed to generate courses (errorId=${errorId}). Check GROQ_API_KEY / GEMINI_API_KEY, quota, and request format. See server logs for errorId.`);
       }
 
-      // Rethrow other errors (NotFound, Unauthorized etc.) so Nest handles them
-      throw err;
+      // For other unexpected errors, return 500 with the error id so we can correlate in logs
+      const { InternalServerErrorException } = require('@nestjs/common');
+      throw new InternalServerErrorException(`Internal error generating courses (errorId=${errorId}). See server logs for details.`);
     }
   }
 
