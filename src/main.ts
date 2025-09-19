@@ -53,6 +53,26 @@ async function bootstrap() {
         const document = SwaggerModule.createDocument(app, config);
         SwaggerModule.setup('api/docs', app, document);
 
+        // In production (serverless) environments some Swagger static assets may 404
+        // because the Nest SwaggerModule serves them from disk. Redirect common
+        // asset paths to the official CDN so the UI loads correctly on Vercel.
+        if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+          const expressApp = app.getHttpAdapter().getInstance();
+          const cdnBase = 'https://unpkg.com/swagger-ui-dist@4.18.3';
+          const assets = [
+            'swagger-ui.css',
+            'swagger-ui-bundle.js',
+            'swagger-ui-standalone-preset.js',
+            'favicon-32x32.png',
+            'favicon-16x16.png',
+          ];
+          assets.forEach((name) => {
+            expressApp.get(`/api/docs/${name}`, (req, res) => {
+              res.redirect(`${cdnBase}/${name}`);
+            });
+          });
+        }
+
         console.log('✅ Swagger UI enabled at /api/docs');
       } else {
         // In production, still create the document for JSON endpoint
