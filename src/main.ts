@@ -112,3 +112,26 @@ export default async function handler(req, res) {
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp(req, res);
 }
+
+// Start server for local development
+if (require.main === module) {
+  bootstrap()
+    .then((app) => {
+      const port = process.env.PORT || 3000;
+      return app.listen(port, '0.0.0.0');
+    })
+    .then(() => {
+      console.log('🚀 Server started successfully!');
+      console.log(`📍 Local server: http://localhost:${process.env.PORT || 3000}`);
+      console.log(`📖 API endpoints: http://localhost:${process.env.PORT || 3000}/api`);
+      if (process.env.NODE_ENV !== 'production' && process.env.VERCEL_ENV !== 'production') {
+        console.log(`📚 Swagger UI: http://localhost:${process.env.PORT || 3000}/api/docs`);
+      } else {
+        console.log(`📄 API Docs JSON: http://localhost:${process.env.PORT || 3000}/api/docs-json`);
+      }
+    })
+    .catch((error) => {
+      console.error('❌ Failed to start server:', error);
+      process.exit(1);
+    });
+}
