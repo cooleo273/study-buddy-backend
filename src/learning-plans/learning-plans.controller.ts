@@ -4,7 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { LearningPlansService } from './learning-plans.service';
 import { CreateLearningPlanDto, UpdateLearningPlanDto, CreateMilestoneDto, UpdateMilestoneDto, CreateCourseDto, UpdateCourseDto, GenerateCoursesDto } from './dto/create-learning-plan.dto';
 import { LearningPlanResponseDto, LearningPlanSummaryDto, MilestoneResponseDto, CourseResponseDto } from './dto/learning-plan-response.dto';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('learning-plans')
 @ApiBearerAuth('JWT-auth')
