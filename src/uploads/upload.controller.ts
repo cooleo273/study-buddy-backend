@@ -35,18 +35,34 @@ export class UploadController {
   })
   @ApiResponse({ status: 201, description: 'Avatar uploaded successfully' })
   @ApiResponse({ status: 400, description: 'Invalid file' })
-  @UseInterceptors(FileInterceptor('file', { dest: './uploads' }))
+  @UseInterceptors(FileInterceptor('file', {
+    storage: require('multer').memoryStorage(),
+    fileFilter: (req, file, callback) => {
+      // Allow only images
+      if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
+        return callback(new Error('Only image files are allowed for avatars!'), false);
+      }
+      callback(null, true);
+    },
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+  }))
   async uploadAvatar(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
 
+    // Generate filename for the uploaded file
+    const filename = this.uploadService.generateFilename(file.originalname);
+
     const result = {
-      filename: file.filename,
+      filename: filename,
       originalname: file.originalname,
       mimetype: file.mimetype,
       size: file.size,
-      url: this.uploadService.getFileUrl(file.filename),
+      url: this.uploadService.getFileUrl(filename),
+      buffer: file.buffer, // Include buffer for cloud storage upload
     };
 
     return {
@@ -72,18 +88,34 @@ export class UploadController {
   })
   @ApiResponse({ status: 201, description: 'Document uploaded successfully' })
   @ApiResponse({ status: 400, description: 'Invalid file' })
-  @UseInterceptors(FileInterceptor('file', { dest: './uploads' }))
+  @UseInterceptors(FileInterceptor('file', {
+    storage: require('multer').memoryStorage(),
+    fileFilter: (req, file, callback) => {
+      // Allow only documents
+      if (!file.mimetype.match(/\/(pdf|doc|docx)$/)) {
+        return callback(new Error('Only document files are allowed!'), false);
+      }
+      callback(null, true);
+    },
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit for documents
+    },
+  }))
   async uploadDocument(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
 
+    // Generate filename for the uploaded file
+    const filename = this.uploadService.generateFilename(file.originalname);
+
     const result = {
-      filename: file.filename,
+      filename: filename,
       originalname: file.originalname,
       mimetype: file.mimetype,
       size: file.size,
-      url: this.uploadService.getFileUrl(file.filename),
+      url: this.uploadService.getFileUrl(filename),
+      buffer: file.buffer, // Include buffer for cloud storage upload
     };
 
     return {

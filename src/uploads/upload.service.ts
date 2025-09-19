@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { extname } from 'path';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 
 export interface FileUploadResult {
   filename: string;
@@ -8,6 +8,7 @@ export interface FileUploadResult {
   mimetype: string;
   size: number;
   url: string;
+  buffer?: Buffer;
 }
 
 @Injectable()
@@ -36,14 +37,7 @@ export class UploadService {
 
   createMulterOptions() {
     return {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, callback) => {
-          const fileExtName = extname(file.originalname);
-          const fileName = `${this.uuidGenerator()}${fileExtName}`;
-          callback(null, fileName);
-        },
-      }),
+      storage: memoryStorage(),
       fileFilter: (req, file, callback) => {
         // Allow only images and documents
         if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|pdf|doc|docx)$/)) {
@@ -59,5 +53,11 @@ export class UploadService {
 
   getFileUrl(filename: string): string {
     return `${process.env.APP_URL || 'http://localhost:3000'}/uploads/${filename}`;
+  }
+
+  // Helper method to generate filename for in-memory files
+  generateFilename(originalname: string): string {
+    const fileExtName = extname(originalname);
+    return `${this.uuidGenerator()}${fileExtName}`;
   }
 }
