@@ -220,7 +220,22 @@ export class LearningPlansController {
     console.log('Milestone ID:', milestoneId);
     console.log('Generate DTO:', JSON.stringify(generateCoursesDto, null, 2));
 
-    return this.learningPlansService.generateCoursesForMilestone(req.user.id, planId, milestoneId, generateCoursesDto);
+    try {
+      return await this.learningPlansService.generateCoursesForMilestone(req.user.id, planId, milestoneId, generateCoursesDto);
+    } catch (err) {
+      // If AI service or parsing returned BadRequest, map to 503 with actionable info
+      console.error('Error generating courses:', err?.message ?? err);
+      // Importing types here to avoid top-level change
+      const { BadRequestException } = require('@nestjs/common');
+      if (err instanceof BadRequestException || (err && err.status === 400)) {
+        // Return 503 Service Unavailable with hint to check AI provider keys and quota
+        const { ServiceUnavailableException } = require('@nestjs/common');
+        throw new ServiceUnavailableException('AI service failed to generate courses. Check GROQ_API_KEY / GEMINI_API_KEY, quota, and request format. See server logs for details.');
+      }
+
+      // Rethrow other errors (NotFound, Unauthorized etc.) so Nest handles them
+      throw err;
+    }
   }
 
   @Post(':planId/milestones/:milestoneId/courses')
