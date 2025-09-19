@@ -86,12 +86,14 @@ Once the server is running, visit `http://localhost:3000/api` to access the Swag
 
 ## AI Integration Setup
 
-### 1. Get Gemini API Key
+### 1. Get Gemini and Groq API Keys
 1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Create a new API key
-3. Add it to your `.env` file:
+3. Also get a Groq API key from https://console.groq.com/keys (optional but recommended for fallback)
+4. Add them to your `.env` file:
    ```env
-   GEMINI_API_KEY=your-actual-api-key-here
+  GEMINI_API_KEY=your-actual-gemini-api-key-here
+  GROQ_API_KEY=your-actual-groq-api-key-here
    ```
 
 ### 2. Frontend Integration
@@ -154,12 +156,23 @@ src/
 DATABASE_URL="postgresql://..."          # Neon DB connection string
 JWT_SECRET="your-secure-secret"          # JWT signing secret
 GEMINI_API_KEY="your-gemini-api-key"     # Google Gemini API key
+GROQ_API_KEY="your-groq-api-key"         # Groq API key (fallback/provider)
 APP_URL="http://localhost:3000"          # Application URL
 SMTP_HOST="smtp.gmail.com"              # Email SMTP host
 SMTP_PORT="587"                         # Email SMTP port
 SMTP_USER="your-email@gmail.com"        # Email username
 SMTP_PASS="your-app-password"           # Email password
 ```
+
+## AI-generated Courses
+
+- The endpoint `POST /api/v1/learning-plans/:planId/milestones/:milestoneId/generate-courses` now uses AI (Groq → Gemini fallback) to generate courses dynamically.
+- You can supply body options:
+  - `count` (number, default 5)
+  - `topics` (string[]; defaults to milestone title)
+  - `difficulty` ("beginner" | "intermediate" | "advanced"; default "intermediate")
+- The backend prompts the model to return a strict JSON array of courses which is validated and saved.
+
 
 ## Development
 

@@ -1,19 +1,31 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateLearningPlanDto, UpdateLearningPlanDto, CreateMilestoneDto, UpdateMilestoneDto } from './dto/create-learning-plan.dto';
-import { LearningPlanResponseDto, LearningPlanSummaryDto, MilestoneResponseDto } from './dto/learning-plan-response.dto';
+import { CreateLearningPlanDto, UpdateLearningPlanDto, CreateMilestoneDto, UpdateMilestoneDto, CreateCourseDto, UpdateCourseDto, GenerateCoursesDto } from './dto/create-learning-plan.dto';
+import { LearningPlanResponseDto, LearningPlanSummaryDto, MilestoneResponseDto, CourseResponseDto } from './dto/learning-plan-response.dto';
+import { AiService } from '../ai/ai.service';
 
 @Injectable()
 export class LearningPlansService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(LearningPlansService.name);
+  constructor(private prisma: PrismaService, private ai: AiService) {}
 
   async create(userId: string, dto: CreateLearningPlanDto): Promise<LearningPlanResponseDto> {
+    console.log('=== LEARNING PLANS SERVICE CREATE ===');
+    console.log('User ID:', userId);
+    console.log('DTO:', JSON.stringify(dto, null, 2));
+
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
     const learningPlan = await this.prisma.learningPlan.create({
       data: {
-        userId,
         title: dto.title,
         description: dto.description,
         subjects: dto.subjects,
+        user: {
+          connect: { id: userId }
+        },
         milestones: {
           create: dto.milestones.map(milestone => ({
             title: milestone.title,
@@ -26,10 +38,16 @@ export class LearningPlansService {
       include: {
         milestones: {
           orderBy: { orderIndex: 'asc' },
+          include: {
+            courses: {
+              orderBy: { orderIndex: 'asc' }
+            }
+          }
         },
       },
     });
 
+    console.log('Learning plan created successfully:', learningPlan.id);
     return this.mapToResponseDto(learningPlan);
   }
 
@@ -60,6 +78,11 @@ export class LearningPlansService {
       include: {
         milestones: {
           orderBy: { orderIndex: 'asc' },
+          include: {
+            courses: {
+              orderBy: { orderIndex: 'asc' }
+            }
+          }
         },
       },
     });
@@ -87,6 +110,11 @@ export class LearningPlansService {
       include: {
         milestones: {
           orderBy: { orderIndex: 'asc' },
+          include: {
+            courses: {
+              orderBy: { orderIndex: 'asc' }
+            }
+          }
         },
       },
     });
@@ -124,7 +152,7 @@ export class LearningPlansService {
       updateData.completedAt = dto.isCompleted ? new Date() : null;
     }
 
-    const milestone = await this.prisma.learningPlanMilestone.update({
+    const updatedMilestone = await this.prisma.learningPlanMilestone.update({
       where: { id: milestoneId },
       data: updateData,
     });
@@ -133,43 +161,15 @@ export class LearningPlansService {
     await this.updatePlanProgress(planId);
 
     return {
-      id: milestone.id,
-      title: milestone.title,
-      description: milestone.description,
-      subjectId: milestone.subjectId,
-      isCompleted: milestone.isCompleted,
-      completedAt: milestone.completedAt,
-      orderIndex: milestone.orderIndex,
-      createdAt: milestone.createdAt,
-    };
-  }
-
-  async addMilestone(userId: string, planId: string, dto: CreateMilestoneDto): Promise<MilestoneResponseDto> {
-    // Check if plan exists and belongs to user
-    await this.findOne(userId, planId);
-
-    const milestone = await this.prisma.learningPlanMilestone.create({
-      data: {
-        planId,
-        title: dto.title,
-        description: dto.description,
-        subjectId: dto.subjectId,
-        orderIndex: dto.orderIndex,
-      },
-    });
-
-    // Update plan progress
-    await this.updatePlanProgress(planId);
-
-    return {
-      id: milestone.id,
-      title: milestone.title,
-      description: milestone.description,
-      subjectId: milestone.subjectId,
-      isCompleted: milestone.isCompleted,
-      completedAt: milestone.completedAt,
-      orderIndex: milestone.orderIndex,
-      createdAt: milestone.createdAt,
+      id: updatedMilestone.id,
+      title: updatedMilestone.title,
+      description: updatedMilestone.description,
+      subjectId: updatedMilestone.subjectId,
+      isCompleted: updatedMilestone.isCompleted,
+      completedAt: updatedMilestone.completedAt,
+      orderIndex: updatedMilestone.orderIndex,
+      courses: [],
+      createdAt: updatedMilestone.createdAt,
     };
   }
 
@@ -184,6 +184,318 @@ export class LearningPlansService {
     // Update plan progress
     await this.updatePlanProgress(planId);
   }
+
+  async addMilestone(userId: string, planId: string, dto: CreateMilestoneDto): Promise<MilestoneResponseDto> {
+    // Check if plan exists and belongs to user
+    await this.findOne(userId, planId);
+
+    const newMilestone = await this.prisma.learningPlanMilestone.create({
+      data: {
+        planId,
+        title: dto.title,
+        description: dto.description,
+        subjectId: dto.subjectId,
+        orderIndex: dto.orderIndex,
+      },
+    });
+
+    // Update plan progress
+    await this.updatePlanProgress(planId);
+
+    return {
+      id: newMilestone.id,
+      title: newMilestone.title,
+      description: newMilestone.description,
+      subjectId: newMilestone.subjectId,
+      isCompleted: newMilestone.isCompleted,
+      completedAt: newMilestone.completedAt,
+      orderIndex: newMilestone.orderIndex,
+      courses: [],
+      createdAt: newMilestone.createdAt,
+    };
+  }
+
+  async generateCoursesForMilestone(
+    userId: string,
+    planId: string,
+    milestoneId: string,
+    dto: GenerateCoursesDto,
+  ): Promise<CourseResponseDto[]> {
+    this.logger.log('=== GENERATE COURSES FOR MILESTONE (AI) ===');
+    this.logger.debug(JSON.stringify({ userId, planId, milestoneId, dto }, null, 2));
+
+    // Check if plan exists and belongs to user
+    const plan = await this.findOne(userId, planId);
+    const milestone = plan.milestones.find(m => m.id === milestoneId);
+
+    if (!milestone) {
+      throw new NotFoundException('Milestone not found');
+    }
+
+    const count = dto.count ?? 5;
+    const difficulty = (dto.difficulty ?? 'intermediate').toLowerCase();
+    const topics = dto.topics && dto.topics.length > 0 ? dto.topics : [milestone.title];
+
+    // Build AI system prompt and user message requesting strict JSON
+  const systemPrompt = `You are an expert curriculum designer. Return only JSON (no backticks, no prose), strictly matching this TypeScript type:
+type Course = { title: string; description: string; content: string; duration: number; difficulty: 'beginner' | 'intermediate' | 'advanced'; orderIndex: number };
+Return an array Course[] only.
+CRITICAL RULES:
+- Do NOT use LaTeX backslash sequences like \( \), \frac, etc. Use plain text or Markdown without LaTeX.
+- If you must include a backslash in any string, escape it as \\\\ (double backslash in JSON).
+- Do not include any text outside the JSON array.`;
+
+  const userMessage = `Create ${count} concise, well-structured mini-courses for the milestone "${milestone.title}".
+Context:
+- Overall plan title: ${plan.title}
+- Milestone description: ${milestone.description ?? 'N/A'}
+- Desired difficulty: ${difficulty}
+- Topics to cover (may combine if helpful): ${topics.join(', ')}
+
+Constraints:
+- duration in minutes appropriate for the difficulty (beginner: 30-60, intermediate: 60-90, advanced: 90-150)
+- orderIndex must start at 0 and increment by 1
+- content should be rich markdown with these specific sections in this order:
+  1. **Course Introduction**: Start with a detailed description of what this course covers and why it's important
+  2. **Learning Objectives**: Clear, measurable objectives students will achieve
+  3. **Key Concepts**: Deep, comprehensive explanations of each major concept with examples
+  4. **Detailed Explanations**: In-depth breakdowns of complex topics
+  5. **Practical Examples**: Real-world applications and case studies
+  6. **Interactive Quizzes**: Multiple choice and short answer questions to test understanding
+  7. **Summary & Key Takeaways**: Main points and what students should remember
+- ensure titles are unique and specific
+- Do NOT use LaTeX expressions (no \\(...\\), \\frac, etc.)
+- Escape any backslashes in strings as \\\\ (JSON-safe)
+- Do not include code fences or any text outside pure JSON`;
+
+    // Call AI (Groq first, fallback to Gemini) via AiService
+    const aiResult = await this.ai.generateContent({
+      message: userMessage,
+      systemPrompt,
+      parameters: { temperature: 0.6, maxTokens: 1800 }
+    });
+
+    let coursesFromAi = this.parseCoursesJson(aiResult.response);
+    // Retry: if parsing failed, ask AI to reformat to valid JSON array only
+    if (!coursesFromAi || coursesFromAi.length === 0) {
+      this.logger.warn('Primary AI response not parseable as JSON. Attempting reformat.');
+  const reformatSystem = 'You are a formatter. Return VALID JSON ONLY. No markdown, no code fences, no explanations.';
+  const reformatUser = `Convert the following text into a valid JSON array of Course objects with exact keys: title (string), description (string), content (string), duration (number, minutes), difficulty (one of: "beginner" | "intermediate" | "advanced" in lowercase), orderIndex (number starting at 0, consecutive). Ensure proper JSON escaping, no LaTeX, no extra text. Output JSON array only.\n\nTEXT:\n${aiResult.response}`;
+      try {
+        const reformatted = await this.ai.generateContent({
+          message: reformatUser,
+          systemPrompt: reformatSystem,
+          parameters: { temperature: 0.1, maxTokens: 1800 }
+        });
+        coursesFromAi = this.parseCoursesJson(reformatted.response);
+      } catch (e) {
+        this.logger.warn(`Reformat attempt failed: ${e.message}`);
+      }
+    }
+    if (!coursesFromAi || coursesFromAi.length === 0) {
+      throw new BadRequestException('AI did not return any courses in the expected JSON format');
+    }
+
+    // Normalize and cap to requested count
+    const normalized: CreateCourseDto[] = coursesFromAi
+      .slice(0, count)
+      .map((c: any, idx: number) => ({
+        title: String(c.title ?? `Course ${idx + 1}`),
+        description: c.description ? String(c.description) : undefined,
+        content: c.content ? String(c.content) : undefined,
+        duration: this.clampDuration(Number(c.duration), difficulty),
+        difficulty: ['beginner','intermediate','advanced'].includes(String(c.difficulty)) ? String(c.difficulty) : difficulty,
+        orderIndex: typeof c.orderIndex === 'number' ? c.orderIndex : idx,
+      }));
+
+    // Create in DB
+    const created = await this.prisma.$transaction(
+      normalized.map(course => this.prisma.course.create({
+        data: {
+          milestoneId,
+          title: course.title,
+          description: course.description,
+          content: course.content,
+          duration: course.duration,
+          difficulty: course.difficulty,
+          orderIndex: course.orderIndex,
+        },
+      }))
+    );
+
+    this.logger.log(`Generated ${created.length} AI courses for milestone ${milestoneId}`);
+
+    return created.map(course => ({
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      content: course.content,
+      duration: course.duration,
+      difficulty: course.difficulty,
+      isCompleted: course.isCompleted,
+      completedAt: course.completedAt,
+      orderIndex: course.orderIndex,
+      createdAt: course.createdAt,
+      updatedAt: course.updatedAt,
+    }));
+  }
+
+  // Helper: clamp duration to reasonable bounds based on difficulty
+  private clampDuration(value: number, difficulty: string): number {
+    const ranges: Record<string, [number, number]> = {
+      beginner: [30, 60],
+      intermediate: [60, 90],
+      advanced: [90, 150],
+    };
+    const [min, max] = ranges[difficulty] ?? ranges.intermediate;
+    if (!Number.isFinite(value)) return min;
+    return Math.min(Math.max(Math.round(value), min), max);
+  }
+
+  // Helper: extract JSON array from AI text (handles code fences and trailing text)
+  private parseCoursesJson(text: string): any[] {
+    try {
+      // Quick path
+      const direct = JSON.parse(text);
+      return Array.isArray(direct) ? direct : [];
+    } catch {}
+
+    // Try to find the first [ ... ] JSON array substring
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if (start !== -1 && end !== -1 && end > start) {
+      const jsonLike = text.slice(start, end + 1);
+      // First try raw
+      try {
+        const arr = JSON.parse(jsonLike);
+        return Array.isArray(arr) ? arr : [];
+      } catch {}
+      // Then try sanitized
+      const sanitized = this.sanitizeJsonLike(jsonLike);
+      try {
+        const arr2 = JSON.parse(sanitized);
+        return Array.isArray(arr2) ? arr2 : [];
+      } catch {}
+    }
+
+    // Remove fenced code markdown if present
+    const cleaned = text
+      .replace(/^```(json)?/gim, '')
+      .replace(/```$/gim, '')
+      .trim();
+    try {
+      const parsed = JSON.parse(cleaned);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {}
+
+    // Last attempt: sanitize whole text
+    const sanitizedWhole = this.sanitizeJsonLike(cleaned);
+    try {
+      const parsed2 = JSON.parse(sanitizedWhole);
+      return Array.isArray(parsed2) ? parsed2 : [];
+    } catch {}
+
+    this.logger.warn('Failed to parse AI response as JSON array. Returning empty.');
+    return [];
+  }
+
+  // Attempts to fix common JSON issues from LLMs: unescaped backslashes (e.g., "\(") and trailing commas
+  private sanitizeJsonLike(input: string): string {
+    let out = input;
+    // Remove trailing commas before } or ]
+    out = out.replace(/,(\s*[}\]])/g, '$1');
+    // Escape any backslash that is not followed by a valid JSON escape char
+    // Valid escapes: \ " / b f n r t u
+    out = out.replace(/\\(?![\\"\/bfnrtu])/g, '\\\\');
+    return out;
+  }
+
+  async addCourse(userId: string, planId: string, milestoneId: string, dto: CreateCourseDto): Promise<CourseResponseDto> {
+    // Check if plan exists and belongs to user
+    await this.findOne(userId, planId);
+
+    const course = await this.prisma.course.create({
+      data: {
+        milestoneId,
+        title: dto.title,
+        description: dto.description,
+        content: dto.content,
+        duration: dto.duration,
+        difficulty: dto.difficulty,
+        orderIndex: dto.orderIndex,
+      },
+    });
+
+    return {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      content: course.content,
+      duration: course.duration,
+      difficulty: course.difficulty,
+      isCompleted: course.isCompleted,
+      completedAt: course.completedAt,
+      orderIndex: course.orderIndex,
+      createdAt: course.createdAt,
+      updatedAt: course.updatedAt,
+    };
+  }
+
+  async updateCourse(
+    userId: string,
+    planId: string,
+    milestoneId: string,
+    courseId: string,
+    dto: UpdateCourseDto,
+  ): Promise<CourseResponseDto> {
+    // Check if plan exists and belongs to user
+    await this.findOne(userId, planId);
+
+    const updateData: any = {
+      ...(dto.title && { title: dto.title }),
+      ...(dto.description !== undefined && { description: dto.description }),
+      ...(dto.content !== undefined && { content: dto.content }),
+      ...(dto.duration !== undefined && { duration: dto.duration }),
+      ...(dto.difficulty !== undefined && { difficulty: dto.difficulty }),
+      ...(dto.orderIndex !== undefined && { orderIndex: dto.orderIndex }),
+    };
+
+    if (dto.isCompleted !== undefined) {
+      updateData.isCompleted = dto.isCompleted;
+      updateData.completedAt = dto.isCompleted ? new Date() : null;
+    }
+
+    const course = await this.prisma.course.update({
+      where: { id: courseId },
+      data: updateData,
+    });
+
+    return {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      content: course.content,
+      duration: course.duration,
+      difficulty: course.difficulty,
+      isCompleted: course.isCompleted,
+      completedAt: course.completedAt,
+      orderIndex: course.orderIndex,
+      createdAt: course.createdAt,
+      updatedAt: course.updatedAt,
+    };
+  }
+
+  async removeCourse(userId: string, planId: string, milestoneId: string, courseId: string): Promise<void> {
+    // Check if plan exists and belongs to user
+    await this.findOne(userId, planId);
+
+    await this.prisma.course.delete({
+      where: { id: courseId },
+    });
+  }
+  // Removed malformed legacy logarithms generator. AI-based generation is used instead.
+
+  // Removed additional legacy logarithms content generators.
 
   private async updatePlanProgress(planId: string): Promise<void> {
     const milestones = await this.prisma.learningPlanMilestone.findMany({
@@ -222,6 +534,19 @@ export class LearningPlansService {
         isCompleted: milestone.isCompleted,
         completedAt: milestone.completedAt,
         orderIndex: milestone.orderIndex,
+        courses: milestone.courses?.map(course => ({
+          id: course.id,
+          title: course.title,
+          description: course.description,
+          content: course.content,
+          duration: course.duration,
+          difficulty: course.difficulty,
+          isCompleted: course.isCompleted,
+          completedAt: course.completedAt,
+          orderIndex: course.orderIndex,
+          createdAt: course.createdAt,
+          updatedAt: course.updatedAt,
+        })) || [],
         createdAt: milestone.createdAt,
       })),
       createdAt: plan.createdAt,

@@ -63,7 +63,28 @@ model LearningPlanMilestone {
   createdAt    DateTime @default(now())
 
   plan         LearningPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  courses      Course[]
 
   @@index([planId, orderIndex])
   @@index([planId, isCompleted])
+}
+
+model Course {
+  id           String   @id @default(uuid())
+  milestoneId  String
+  title        String
+  description  String?
+  content      String?  // Course content/material
+  duration     Int?     // Duration in minutes
+  difficulty   String?  // easy, medium, hard
+  isCompleted  Boolean  @default(false)
+  completedAt  DateTime?
+  orderIndex   Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  milestone    LearningPlanMilestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@index([milestoneId, orderIndex])
+  @@index([milestoneId, isCompleted])
 }

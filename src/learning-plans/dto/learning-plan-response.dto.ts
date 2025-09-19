@@ -1,5 +1,40 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export class CourseResponseDto {
+  @ApiProperty({ description: 'Course ID' })
+  id: string;
+
+  @ApiProperty({ description: 'Course title' })
+  title: string;
+
+  @ApiPropertyOptional({ description: 'Course description' })
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'Course content/material' })
+  content?: string;
+
+  @ApiPropertyOptional({ description: 'Course duration in minutes' })
+  duration?: number;
+
+  @ApiPropertyOptional({ description: 'Course difficulty level' })
+  difficulty?: string;
+
+  @ApiProperty({ description: 'Whether course is completed' })
+  isCompleted: boolean;
+
+  @ApiPropertyOptional({ description: 'When course was completed' })
+  completedAt?: Date;
+
+  @ApiProperty({ description: 'Order index of the course' })
+  orderIndex: number;
+
+  @ApiProperty({ description: 'When course was created' })
+  createdAt: Date;
+
+  @ApiProperty({ description: 'When course was last updated' })
+  updatedAt: Date;
+}
+
 export class MilestoneResponseDto {
   @ApiProperty({ description: 'Milestone ID' })
   id: string;
@@ -21,6 +56,9 @@ export class MilestoneResponseDto {
 
   @ApiProperty({ description: 'Order index of the milestone' })
   orderIndex: number;
+
+  @ApiProperty({ description: 'Courses for this milestone', type: [CourseResponseDto] })
+  courses: CourseResponseDto[];
 
   @ApiProperty({ description: 'When milestone was created' })
   createdAt: Date;

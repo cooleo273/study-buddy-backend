@@ -113,38 +113,17 @@ export class AiService {
     console.log('Generated text type:', typeof generatedText);
     console.log('Is array?', Array.isArray(generatedText));
     console.log('Generated text length:', generatedText?.length);
+    if (!generatedText || (typeof generatedText === 'string' && generatedText.trim().length < 10)) {
+      this.logger.warn('Gemini returned empty or too-short content');
+      throw new BadRequestException('Gemini returned empty content');
+    }
     
-    // Handle case where AI returns an array instead of string
-    let processedText = generatedText;
-    if (Array.isArray(generatedText)) {
-      console.log('Processing as array with length:', generatedText.length);
-      // Convert array to a readable string
-      processedText = generatedText.map(item => 
-        typeof item === 'string' ? item : JSON.stringify(item)
-      ).join('\n\n');
-      console.log('Converted array response to string, length:', processedText.length);
-      console.log('Converted response preview:', processedText.substring(0, 200));
-    } else if (typeof generatedText === 'string' && generatedText.startsWith('[') && generatedText.endsWith(']')) {
-      // Handle case where API returns stringified array
-      try {
-        const parsedArray = JSON.parse(generatedText);
-        if (Array.isArray(parsedArray)) {
-          console.log('Processing as stringified array with length:', parsedArray.length);
-          processedText = parsedArray.map(item => 
-            typeof item === 'string' ? item : JSON.stringify(item)
-          ).join('\n\n');
-          console.log('Converted stringified array response to string, length:', processedText.length);
-          console.log('Converted response preview:', processedText.substring(0, 200));
-        }
-      } catch (e) {
-        console.log('Failed to parse as JSON array, treating as regular string');
-      }
-    } else if (typeof generatedText !== 'string') {
-      // Handle other non-string types
-      processedText = String(generatedText);
-      console.log('Converted non-string response to string, length:', processedText.length);
+    // Preserve JSON arrays as-is; only stringify non-strings
+    let processedText: string;
+    if (typeof generatedText === 'string') {
+      processedText = generatedText;
     } else {
-      console.log('Processing as regular string, length:', processedText.length);
+      processedText = JSON.stringify(generatedText);
     }
     
     console.log('Final processed response preview:', processedText?.substring(0, 200));
@@ -233,38 +212,17 @@ export class AiService {
     console.log('Generated text type:', typeof generatedText);
     console.log('Is array?', Array.isArray(generatedText));
     console.log('Generated text from Groq (truncated):', generatedText?.substring(0, 100));
+    if (!generatedText || (typeof generatedText === 'string' && generatedText.trim().length < 10)) {
+      this.logger.warn('Groq returned empty or too-short content');
+      throw new BadRequestException('Groq returned empty content');
+    }
     
-    // Handle case where AI returns an array instead of string
-    let processedText = generatedText;
-    if (Array.isArray(generatedText)) {
-      console.log('Processing as array with length:', generatedText.length);
-      // Convert array to a readable string
-      processedText = generatedText.map(item => 
-        typeof item === 'string' ? item : JSON.stringify(item)
-      ).join('\n\n');
-      console.log('Converted array response to string, length:', processedText.length);
-      console.log('Converted response preview:', processedText.substring(0, 200));
-    } else if (typeof generatedText === 'string' && generatedText.startsWith('[') && generatedText.endsWith(']')) {
-      // Handle case where API returns stringified array
-      try {
-        const parsedArray = JSON.parse(generatedText);
-        if (Array.isArray(parsedArray)) {
-          console.log('Processing as stringified array with length:', parsedArray.length);
-          processedText = parsedArray.map(item => 
-            typeof item === 'string' ? item : JSON.stringify(item)
-          ).join('\n\n');
-          console.log('Converted stringified array response to string, length:', processedText.length);
-          console.log('Converted response preview:', processedText.substring(0, 200));
-        }
-      } catch (e) {
-        console.log('Failed to parse as JSON array, treating as regular string');
-      }
-    } else if (typeof generatedText !== 'string') {
-      // Handle other non-string types
-      processedText = String(generatedText);
-      console.log('Converted non-string response to string, length:', processedText.length);
+    // Preserve JSON arrays as-is; only stringify non-strings
+    let processedText: string;
+    if (typeof generatedText === 'string') {
+      processedText = generatedText;
     } else {
-      console.log('Processing as regular string, length:', processedText.length);
+      processedText = JSON.stringify(generatedText);
     }
     
     console.log('Final processed response preview:', processedText?.substring(0, 200));
