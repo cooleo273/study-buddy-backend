@@ -96,8 +96,6 @@ temp/
 logs
 *.log
 
-# Uploads directory
-uploads/
 
 # Database
 *.db
