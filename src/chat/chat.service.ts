@@ -1,8 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChatSessionDto, UpdateChatSessionDto, ChatSessionsQueryDto, PaginatedChatSessionsDto, ChatMessageDto } from './dto/chat-session.dto';
-import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
+
+// Import Prisma types with error handling
+let Prisma: any;
+try {
+  Prisma = require('@prisma/client').Prisma;
+} catch (error) {
+  console.warn('Prisma types not available, using fallback');
+  Prisma = {};
+}
 
 @Injectable()
 export class ChatService {
