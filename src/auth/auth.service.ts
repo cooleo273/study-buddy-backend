@@ -33,8 +33,8 @@ export class AuthService {
       // Generate tokens
       const payload = { userId: user.id, email: user.email, type: 'access' };
       const refreshPayload = { userId: user.id, email: user.email, type: 'refresh' };
-      const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
-      const refreshToken = this.jwtService.sign(refreshPayload, { expiresIn: '7d' });
+      const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' } as any);
+      const refreshToken = this.jwtService.sign(refreshPayload, { expiresIn: '7d' } as any);
 
       // Create user response
       const userResponse: AuthUserResponseDto = {
@@ -67,8 +67,8 @@ export class AuthService {
     // Generate tokens
     const accessPayload = { userId: user.id, email: user.email, type: 'access' };
     const refreshPayload = { userId: user.id, email: user.email, type: 'refresh' };
-    const accessToken = this.jwtService.sign(accessPayload, { expiresIn: '15m' });
-    const refreshToken = this.jwtService.sign(refreshPayload, { expiresIn: '7d' });
+    const accessToken = this.jwtService.sign(accessPayload, { expiresIn: '15m' } as any);
+    const refreshToken = this.jwtService.sign(refreshPayload, { expiresIn: '7d' } as any);
 
     // Create user response
     const userResponse: AuthUserResponseDto = {
@@ -106,8 +106,8 @@ export class AuthService {
       // Generate new tokens
       const newPayload = { userId: user.id, email: user.email, type: 'access' };
       const newRefreshPayload = { userId: user.id, email: user.email, type: 'refresh' };
-      const accessToken = this.jwtService.sign(newPayload, { expiresIn: '15m' });
-      const newRefreshToken = this.jwtService.sign(newRefreshPayload, { expiresIn: '7d' });
+      const accessToken = this.jwtService.sign(newPayload, { expiresIn: '15m' } as any);
+      const newRefreshToken = this.jwtService.sign(newRefreshPayload, { expiresIn: '7d' } as any);
 
       // Create user response
       const userResponse: AuthUserResponseDto = {

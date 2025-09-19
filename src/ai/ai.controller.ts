@@ -53,17 +53,17 @@ export class AiController {
   @Header('Connection', 'keep-alive')
   async stream(@Body() dto: StreamRequestDto, @Res() res: ExpressResponse): Promise<void> {
     try {
-      res.write('data: [START]\n\n');
+      (res as any).write('data: [START]\n\n');
 
       for await (const chunk of this.aiService.streamContent(dto)) {
-        res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+        (res as any).write(`data: ${JSON.stringify({ chunk })}\n\n`);
       }
 
-      res.write('data: [END]\n\n');
-      res.end();
+      (res as any).write('data: [END]\n\n');
+      (res as any).end();
     } catch (error) {
-      res.write(`data: ${JSON.stringify({ error: error.message || 'Streaming failed' })}\n\n`);
-      res.end();
+      (res as any).write(`data: ${JSON.stringify({ error: error.message || 'Streaming failed' })}\n\n`);
+      (res as any).end();
     }
   }
 
