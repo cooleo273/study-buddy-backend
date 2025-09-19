@@ -24,7 +24,7 @@ async function bootstrap() {
       });
 
       // Swagger configuration - only enable in development
-      if (process.env.NODE_ENV !== 'production' && process.env.VERCEL_ENV !== 'production') {
+      if (process.env.NODE_ENV == 'production' && process.env.VERCEL_ENV == 'production') {
         const config = new DocumentBuilder()
           .setTitle('Ask Friend Learn Backend')
           .setDescription('API for AI tutoring application with user management')
