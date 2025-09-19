@@ -55,13 +55,7 @@ async function bootstrap() {
       // API versioning
       app.setGlobalPrefix('api');
 
-      // For Vercel serverless functions
-      if (process.env.VERCEL) {
-        await app.init();
-      } else {
-        const port = process.env.PORT || 3000;
-        await app.listen(port);
-      }
+      await app.init();
     }
 
     return app;
@@ -71,12 +65,9 @@ async function bootstrap() {
   }
 }
 
-// For Vercel serverless functions
-if (process.env.VERCEL) {
-  module.exports = bootstrap().then(app => {
-    const expressApp = app.getHttpAdapter().getInstance();
-    return expressApp;
-  });
-} else {
-  bootstrap();
+// Export for Vercel
+export default async function handler(req, res) {
+  const app = await bootstrap();
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp(req, res);
 }
