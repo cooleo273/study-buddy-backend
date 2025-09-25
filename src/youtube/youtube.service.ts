@@ -38,34 +38,53 @@ export class YouTubeService {
         return [];
       }
 
-      // Search for videos with educational focus
-      const searchResponse = await this.youtube.search.list({
-        part: ['snippet'],
-        q: `${query} tutorial education learn educational`,
-        type: ['video'],
-        maxResults,
-        order: 'relevance',
-        safeSearch: 'strict',
-        relevanceLanguage: 'en',
-      });
+      // Create more specific search queries for better results
+      const searchQueries = [
+        `${query} explained tutorial`,
+        `${query} for beginners complete guide`,
+        `${query} fundamentals basics`,
+        `${query} introduction overview`,
+      ];
 
-      if (!searchResponse.data.items || searchResponse.data.items.length === 0) {
-        this.logger.warn(`No videos found for query: ${query}`);
-        return [];
+      let allVideoIds: string[] = [];
+
+      // Search with multiple queries to get better results
+      for (const searchQuery of searchQueries) {
+        try {
+          const searchResponse = await this.youtube.search.list({
+            part: ['snippet'],
+            q: searchQuery,
+            type: ['video'],
+            maxResults: Math.ceil(maxResults / 2), // Get fewer per query
+            order: 'relevance',
+            safeSearch: 'strict',
+            relevanceLanguage: 'en',
+            regionCode: 'US', // Prefer US region content
+          });
+
+          if (searchResponse.data.items) {
+            const videoIds = searchResponse.data.items
+              .map(item => item.id?.videoId)
+              .filter(id => id) as string[];
+            allVideoIds = [...allVideoIds, ...videoIds];
+          }
+        } catch (error) {
+          this.logger.warn(`Search failed for query "${searchQuery}":`, error);
+        }
       }
 
-      const videoIds = searchResponse.data.items
-        .map(item => item.id?.videoId)
-        .filter(id => id) as string[];
+      // Remove duplicates and limit
+      allVideoIds = [...new Set(allVideoIds)].slice(0, maxResults * 2);
 
-      if (videoIds.length === 0) {
+      if (allVideoIds.length === 0) {
+        this.logger.warn(`No videos found for query: ${query}`);
         return [];
       }
 
       // Get detailed video information
       const videosResponse = await this.youtube.videos.list({
         part: ['snippet', 'contentDetails', 'statistics'],
-        id: videoIds,
+        id: allVideoIds,
       });
 
       if (!videosResponse.data.items) {
@@ -82,7 +101,8 @@ export class YouTubeService {
             return null;
           }
 
-          // Convert ISO 8601 duration to readable format
+          // Convert ISO 8601 duration to seconds for filtering
+          const durationInSeconds = this.parseDurationToSeconds(contentDetails?.duration || 'PT0S');
           const duration = this.parseDuration(contentDetails?.duration || 'PT0S');
 
           return {
@@ -92,6 +112,7 @@ export class YouTubeService {
             channelName: snippet.channelTitle || 'Unknown Channel',
             channelId: snippet.channelId || '',
             duration,
+            durationInSeconds,
             description: snippet.description || '',
             viewCount: parseInt(statistics?.viewCount || '0'),
             publishedAt: snippet.publishedAt || '',
@@ -100,44 +121,80 @@ export class YouTubeService {
         })
         .filter(video => video !== null)
         .filter(video => {
-          // Filter for educational channels and decent view counts
-          const educationalChannels = [
-            'khan academy',
-            'crash course',
-            'ted-ed',
-            'ted education',
-            'veritasium',
-            '3blue1brown',
-            'vsauce',
-            'pbs space time',
-            'physics girl',
-            'minutephysics',
-            'sci show',
-            'numberphile',
-            'smarter every day',
-            'kurzgesagt',
-            'wheezywaiter',
-            'linus tech tips',
-            'computerphile',
+          // Premium educational channels (higher quality)
+          const premiumChannels = [
+            'Khan Academy',
+            'Crash Course',
+            'TED-Ed',
+            'TED',
+            'Veritasium',
+            '3Blue1Brown',
+            'Vsauce',
+            'PBS Space Time',
+            'Physics Girl',
+            'MinutePhysics',
+            'SciShow',
+            'Numberphile',
+            'Smarter Every Day',
+            'Kurzgesagt',
+            'WheezyWaiter',
+            'Linus Tech Tips',
+            'Computerphile',
             'freeCodeCamp',
             'The Net Ninja',
             'Traversy Media',
             'Academind',
             'Programming with Mosh',
+            'CS Dojo',
+            'sentdex',
+            'Corey Schafer',
+            'Tech With Tim',
+            'Fireship',
+            'Web Dev Simplified',
+            'Kevin Powell',
+            'Coder Coder',
+            'DesignCourse',
+            'The Coding Train',
+            'Ben Awad',
+            'Jack Herrington',
+            'Hussein Nasser',
+            'ByteByteGo',
+            'AWS',
+            'Google Cloud Tech',
+            'Microsoft Developer',
+            'IBM Technology',
+            'Oracle Learning',
+            'MIT OpenCourseWare',
+            'Stanford Online',
+            'Harvard Online',
+            'Coursera',
+            'edX',
+            'Udacity',
           ];
 
           const channelName = video!.channelName.toLowerCase();
-          const isEducational = educationalChannels.some(edu =>
-            channelName.includes(edu.toLowerCase())
+          const isPremiumChannel = premiumChannels.some(premium =>
+            channelName.includes(premium.toLowerCase()) ||
+            premium.toLowerCase().includes(channelName)
           );
 
-          // Accept videos with decent view counts or from known educational channels
-          return isEducational || video!.viewCount > 10000;
-        })
-        .sort((a, b) => b.viewCount - a.viewCount) // Sort by view count descending
-        .slice(0, 3); // Return top 3 results
+          // Strict filtering criteria
+          const meetsCriteria =
+            video!.durationInSeconds >= 300 && // At least 5 minutes
+            video!.viewCount >= 50000 && // At least 50K views
+            isPremiumChannel; // Must be from premium educational channels
 
-      this.logger.log(`Found ${videos.length} educational videos for query: ${query}`);
+          return meetsCriteria;
+        })
+        .sort((a, b) => {
+          // Sort by a combination of view count and duration (longer, more popular videos first)
+          const scoreA = a!.viewCount * Math.log(a!.durationInSeconds + 1);
+          const scoreB = b!.viewCount * Math.log(b!.durationInSeconds + 1);
+          return scoreB - scoreA;
+        })
+        .slice(0, 3); // Return top 3 best results
+
+      this.logger.log(`Found ${videos.length} high-quality educational videos for query: ${query}`);
       return videos;
 
     } catch (error) {
@@ -161,6 +218,17 @@ export class YouTubeService {
     } else {
       return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
+  }
+
+  private parseDurationToSeconds(duration: string): number {
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+
+    const hours = parseInt(match[1] || '0');
+    const minutes = parseInt(match[2] || '0');
+    const seconds = parseInt(match[3] || '0');
+
+    return hours * 3600 + minutes * 60 + seconds;
   }
 
   async getVideoById(videoId: string): Promise<YouTubeVideo | null> {
