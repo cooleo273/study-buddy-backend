@@ -254,6 +254,13 @@ type Course = {
   duration: number; 
   difficulty: 'beginner' | 'intermediate' | 'advanced'; 
   orderIndex: number;
+  youtubeVideo: {
+    title: string;
+    url: string;
+    channel: string;
+    duration: string;
+    description: string;
+  };
   quiz: {
     title: string;
     description?: string;
@@ -277,7 +284,8 @@ CRITICAL RULES:
 - Ensure quiz has 3-4 questions appropriate for the difficulty level.
 - For multiple_choice, provide 4 options with one correct answer.
 - For short_answer, correctAnswer should be the expected answer (case-insensitive).
-- For true_false, options should be ["True", "False"] and correctAnswer "True" or "False".`;
+- For true_false, options should be ["True", "False"] and correctAnswer "True" or "False".
+- For youtubeVideo: Suggest ONE highly-rated, educational YouTube video (search results show high view counts and positive ratings) that perfectly matches the course topic. Include real YouTube URL, channel name, approximate duration, and brief description.`;
 
   const userMessage = `Create ${count} comprehensive mini-courses for the milestone "${milestone.title}".
 Context: ${plan.title} - ${milestone.description ?? 'N/A'}
@@ -288,6 +296,7 @@ Requirements:
 - duration: ${difficulty === 'beginner' ? '30-60' : difficulty === 'intermediate' ? '60-90' : '90-150'} minutes
 - orderIndex: 0 to ${count - 1}
 - content with sections: Course Introduction, Learning Objectives (4-6), Key Concepts, Practical Examples (3-4), Summary
+- youtubeVideo: Suggest ONE highly-rated educational YouTube video that perfectly matches this course topic. Use real, existing videos with high view counts. Include: title, full YouTube URL, channel name, duration (e.g., "15:30"), and brief description of why it's relevant.
 - quiz: 3-4 questions testing understanding
 - titles: unique and specific
 - NO LaTeX, escape backslashes as \\\\
@@ -360,6 +369,13 @@ Requirements:
         duration: this.clampDuration(Number(c.duration), difficulty),
         difficulty: ['beginner','intermediate','advanced'].includes(String(c.difficulty)) ? String(c.difficulty) : difficulty,
         orderIndex: typeof c.orderIndex === 'number' ? c.orderIndex : idx,
+        youtubeVideo: c.youtubeVideo ? {
+          title: String(c.youtubeVideo.title ?? ''),
+          url: String(c.youtubeVideo.url ?? ''),
+          channelName: String(c.youtubeVideo.channel ?? c.youtubeVideo.channelName ?? ''),
+          duration: String(c.youtubeVideo.duration ?? ''),
+          description: String(c.youtubeVideo.description ?? ''),
+        } : undefined,
         quiz: c.quiz ? {
           title: String(c.quiz.title ?? `Quiz for ${c.title}`),
           description: c.quiz.description ? String(c.quiz.description) : undefined,
@@ -389,6 +405,7 @@ Requirements:
             duration: courseData.duration,
             difficulty: courseData.difficulty,
             orderIndex: courseData.orderIndex,
+            youtubeVideo: courseData.youtubeVideo,
           },
         });
 
@@ -448,6 +465,7 @@ Requirements:
         isCompleted: course.isCompleted,
         completedAt: course.completedAt,
         orderIndex: course.orderIndex,
+        youtubeVideo: course.youtubeVideo as any,
         quiz: quiz ? {
           id: quiz.id,
           title: quiz.title,
@@ -485,6 +503,13 @@ Requirements:
         duration: difficulty === 'beginner' ? 45 : difficulty === 'intermediate' ? 75 : 105,
         difficulty,
         orderIndex: i,
+        youtubeVideo: {
+          title: `Introduction to ${baseTitle}`,
+          url: `https://www.youtube.com/watch?v=example${courseNumber}`,
+          channelName: 'Educational Channel',
+          duration: '10:30',
+          description: `A basic introduction to ${baseTitle.toLowerCase()} concepts for beginners.`,
+        },
         quiz: {
           title: `Quiz for ${baseTitle} - Part ${courseNumber}`,
           passingScore: 70,
@@ -597,6 +622,7 @@ Requirements:
         duration: dto.duration,
         difficulty: dto.difficulty,
         orderIndex: dto.orderIndex,
+        youtubeVideo: dto.youtubeVideo,
       },
     });
 
@@ -610,6 +636,7 @@ Requirements:
       isCompleted: course.isCompleted,
       completedAt: course.completedAt,
       orderIndex: course.orderIndex,
+      youtubeVideo: course.youtubeVideo as any,
       createdAt: course.createdAt,
       updatedAt: course.updatedAt,
     };
@@ -666,6 +693,7 @@ Requirements:
       isCompleted: course.isCompleted,
       completedAt: course.completedAt,
       orderIndex: course.orderIndex,
+      youtubeVideo: course.youtubeVideo as any,
       createdAt: course.createdAt,
       updatedAt: course.updatedAt,
     };
@@ -916,6 +944,7 @@ Requirements:
           isCompleted: course.isCompleted,
           completedAt: course.completedAt,
           orderIndex: course.orderIndex,
+          youtubeVideo: course.youtubeVideo as any,
           quiz: course.quizzes && course.quizzes.length > 0 ? {
             id: course.quizzes[0].id,
             title: course.quizzes[0].title,

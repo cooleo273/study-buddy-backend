@@ -80,6 +80,15 @@ export class CourseResponseDto {
   @ApiPropertyOptional({ description: 'Course quiz', type: QuizResponseDto })
   quiz?: QuizResponseDto;
 
+  @ApiPropertyOptional({ description: 'YouTube video suggestion for the course' })
+  youtubeVideo?: {
+    title: string;
+    url: string;
+    channelName: string;
+    duration: string;
+    description: string;
+  };
+
   @ApiProperty({ description: 'When course was created' })
   createdAt: Date;
 

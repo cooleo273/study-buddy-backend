@@ -123,6 +123,15 @@ export class CreateCourseDto {
   @Min(0)
   orderIndex: number;
 
+  @ApiPropertyOptional({ description: 'YouTube video suggestion' })
+  youtubeVideo?: {
+    title: string;
+    url: string;
+    channelName: string;
+    duration: string;
+    description: string;
+  };
+
   // Quiz data for internal use during generation
   quiz?: {
     title: string;
