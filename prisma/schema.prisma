@@ -18,6 +18,7 @@ model User {
 
   chatSessions   ChatSession[]
   learningPlans  LearningPlan[]
+  quizAttempts   QuizAttempt[]
 }
 
 model ChatSession {
@@ -84,7 +85,77 @@ model Course {
   updatedAt    DateTime @updatedAt
 
   milestone    LearningPlanMilestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  quizzes      Quiz[]
 
   @@index([milestoneId, orderIndex])
   @@index([milestoneId, isCompleted])
+}
+
+model Quiz {
+  id          String   @id @default(uuid())
+  courseId    String
+  title       String
+  description String?
+  passingScore Int      @default(70) // Minimum percentage to pass
+  isRequired  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course      Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+
+  @@index([courseId])
+}
+
+model QuizQuestion {
+  id          String   @id @default(uuid())
+  quizId      String
+  question    String
+  type        String   // 'multiple_choice', 'short_answer', 'true_false'
+  options     Json?    // Array of options for multiple choice
+  correctAnswer String // The correct answer
+  explanation String?  // Explanation of why the answer is correct
+  points      Int      @default(1)
+  orderIndex  Int
+  createdAt   DateTime @default(now())
+
+  quiz        Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers     QuizAnswer[]
+
+  @@index([quizId, orderIndex])
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  userId      String
+  quizId      String
+  score       Int      // Percentage score (0-100)
+  isPassed    Boolean  @default(false)
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  timeSpent   Int?     // Time spent in seconds
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz        Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers     QuizAnswer[]
+
+  @@index([userId, quizId])
+  @@index([quizId, completedAt])
+}
+
+model QuizAnswer {
+  id          String   @id @default(uuid())
+  attemptId   String
+  questionId  String
+  answer      String   // User's answer
+  isCorrect   Boolean  @default(false)
+  points      Int      @default(0)
+  answeredAt  DateTime @default(now())
+
+  attempt     QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question    QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([questionId])
 }

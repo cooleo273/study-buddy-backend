@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateLearningPlanDto, UpdateLearningPlanDto, CreateMilestoneDto, UpdateMilestoneDto, CreateCourseDto, UpdateCourseDto, GenerateCoursesDto } from './dto/create-learning-plan.dto';
+import { CreateLearningPlanDto, UpdateLearningPlanDto, CreateMilestoneDto, UpdateMilestoneDto, CreateCourseDto, UpdateCourseDto, GenerateCoursesDto, CreateQuizAttemptDto, QuizAttemptResponseDto } from './dto/create-learning-plan.dto';
 import { LearningPlanResponseDto, LearningPlanSummaryDto, MilestoneResponseDto, CourseResponseDto } from './dto/learning-plan-response.dto';
 import { AiService } from '../ai/ai.service';
 
@@ -238,14 +238,39 @@ export class LearningPlansService {
 
     // Build AI system prompt and user message requesting strict JSON
   const systemPrompt = `You are an expert curriculum designer. Return only JSON (no backticks, no prose), strictly matching this TypeScript type:
-type Course = { title: string; description: string; content: string; duration: number; difficulty: 'beginner' | 'intermediate' | 'advanced'; orderIndex: number };
+type Course = { 
+  title: string; 
+  description: string; 
+  content: string; 
+  duration: number; 
+  difficulty: 'beginner' | 'intermediate' | 'advanced'; 
+  orderIndex: number;
+  quiz: {
+    title: string;
+    description?: string;
+    passingScore: number;
+    questions: Array<{
+      question: string;
+      type: 'multiple_choice' | 'short_answer' | 'true_false';
+      options?: string[];
+      correctAnswer: string;
+      explanation?: string;
+      points: number;
+      orderIndex: number;
+    }>;
+  };
+};
 Return an array Course[] only.
 CRITICAL RULES:
 - Do NOT use LaTeX backslash sequences like \( \), \frac, etc. Use plain text or Markdown without LaTeX.
 - If you must include a backslash in any string, escape it as \\\\ (double backslash in JSON).
-- Do not include any text outside the JSON array.`;
+- Do not include any text outside the JSON array.
+- Ensure quiz has 4-6 questions appropriate for the difficulty level.
+- For multiple_choice, provide 4 options with one correct answer.
+- For short_answer, correctAnswer should be the expected answer (case-insensitive).
+- For true_false, options should be ["True", "False"] and correctAnswer "True" or "False".`;
 
-  const userMessage = `Create ${count} concise, well-structured mini-courses for the milestone "${milestone.title}".
+  const userMessage = `Create ${count} comprehensive, well-structured mini-courses for the milestone "${milestone.title}".
 Context:
 - Overall plan title: ${plan.title}
 - Milestone description: ${milestone.description ?? 'N/A'}
@@ -256,23 +281,46 @@ Constraints:
 - duration in minutes appropriate for the difficulty (beginner: 30-60, intermediate: 60-90, advanced: 90-150)
 - orderIndex must start at 0 and increment by 1
 - content should be rich markdown with these specific sections in this order:
-  1. **Course Introduction**: Start with a detailed description of what this course covers and why it's important
-  2. **Learning Objectives**: Clear, measurable objectives students will achieve
-  3. **Key Concepts**: Deep, comprehensive explanations of each major concept with examples
-  4. **Detailed Explanations**: In-depth breakdowns of complex topics
-  5. **Practical Examples**: Real-world applications and case studies
-  6. **Interactive Quizzes**: Multiple choice and short answer questions to test understanding
-  7. **Summary & Key Takeaways**: Main points and what students should remember
-- ensure titles are unique and specific
+  1. **Course Introduction**: Comprehensive overview of what this course covers, why it's important in the broader context of ${plan.title}, real-world applications, and how it builds upon previous knowledge
+  2. **Learning Objectives**: 5-8 specific, measurable, achievable, relevant, and time-bound (SMART) objectives that clearly state what students will be able to do after completing the course
+  3. **Key Concepts**: Deep, detailed explanations of each major concept with:
+     - Definition and etymology where relevant
+     - Historical context and development
+     - Mathematical/formal definitions with clear notation
+     - Visual analogies or mental models
+     - Common misconceptions and how to avoid them
+     - Step-by-step examples with detailed solutions
+  4. **Detailed Explanations**: In-depth breakdowns covering:
+     - Multiple problem-solving approaches and strategies
+     - Proofs or derivations where applicable
+     - Edge cases and special conditions
+     - Connections to other mathematical concepts
+     - Alternative representations (graphs, tables, formulas)
+     - Common errors and debugging techniques
+  5. **Practical Examples**: 4-6 real-world applications including:
+     - Step-by-step worked solutions with intermediate steps shown
+     - Multiple solution methods for the same problem
+     - Variations and extensions of problems
+     - Real data sets or scenarios from science, business, engineering
+  6. **Interactive Quizzes**: Embedded assessment questions throughout the content (not separate section)
+  7. **Summary & Key Takeaways**: Comprehensive review including:
+     - Main theorems, formulas, and principles
+     - Key relationships and patterns
+     - Memory aids and mnemonic devices
+     - Connections to future topics
+     - Practice problems for self-assessment
+- quiz should have 4-6 questions that test deep understanding, not just memorization
+- ensure titles are unique, specific, and descriptive
 - Do NOT use LaTeX expressions (no \\(...\\), \\frac, etc.)
 - Escape any backslashes in strings as \\\\ (JSON-safe)
-- Do not include code fences or any text outside pure JSON`;
+- Do not include code fences or any text outside pure JSON
+- Make content extremely detailed and educational - aim for comprehensive textbook-level explanations with multiple examples and approaches`;
 
     // Call AI (Groq first, fallback to Gemini) via AiService
     const aiResult = await this.ai.generateContent({
       message: userMessage,
       systemPrompt,
-      parameters: { temperature: 0.6, maxTokens: 1800 }
+      parameters: { temperature: 0.6, maxTokens: 4000 }
     });
 
     let coursesFromAi = this.parseCoursesJson(aiResult.response);
@@ -280,12 +328,12 @@ Constraints:
     if (!coursesFromAi || coursesFromAi.length === 0) {
       this.logger.warn('Primary AI response not parseable as JSON. Attempting reformat.');
   const reformatSystem = 'You are a formatter. Return VALID JSON ONLY. No markdown, no code fences, no explanations.';
-  const reformatUser = `Convert the following text into a valid JSON array of Course objects with exact keys: title (string), description (string), content (string), duration (number, minutes), difficulty (one of: "beginner" | "intermediate" | "advanced" in lowercase), orderIndex (number starting at 0, consecutive). Ensure proper JSON escaping, no LaTeX, no extra text. Output JSON array only.\n\nTEXT:\n${aiResult.response}`;
+  const reformatUser = `Convert the following text into a valid JSON array of Course objects with exact keys: title (string), description (string), content (string), duration (number, minutes), difficulty (one of: "beginner" | "intermediate" | "advanced" in lowercase), orderIndex (number starting at 0, consecutive), quiz (object with title, description?, passingScore, questions array). Ensure proper JSON escaping, no LaTeX, no extra text. Output JSON array only.\n\nTEXT:\n${aiResult.response}`;
       try {
         const reformatted = await this.ai.generateContent({
           message: reformatUser,
           systemPrompt: reformatSystem,
-          parameters: { temperature: 0.1, maxTokens: 1800 }
+          parameters: { temperature: 0.1, maxTokens: 4000 }
         });
         coursesFromAi = this.parseCoursesJson(reformatted.response);
       } catch (e) {
@@ -306,42 +354,115 @@ Constraints:
         duration: this.clampDuration(Number(c.duration), difficulty),
         difficulty: ['beginner','intermediate','advanced'].includes(String(c.difficulty)) ? String(c.difficulty) : difficulty,
         orderIndex: typeof c.orderIndex === 'number' ? c.orderIndex : idx,
+        quiz: c.quiz ? {
+          title: String(c.quiz.title ?? `Quiz for ${c.title}`),
+          description: c.quiz.description ? String(c.quiz.description) : undefined,
+          passingScore: Number(c.quiz.passingScore) || 70,
+          questions: Array.isArray(c.quiz.questions) ? c.quiz.questions.map((q: any, qidx: number) => ({
+            question: String(q.question ?? ''),
+            type: ['multiple_choice', 'short_answer', 'true_false'].includes(q.type) ? q.type : 'multiple_choice',
+            options: Array.isArray(q.options) ? q.options.map(String) : undefined,
+            correctAnswer: String(q.correctAnswer ?? ''),
+            explanation: q.explanation ? String(q.explanation) : undefined,
+            points: Number(q.points) || 1,
+            orderIndex: typeof q.orderIndex === 'number' ? q.orderIndex : qidx,
+          })) : [],
+        } : undefined,
       }));
 
     // Create in DB using transaction callback to preserve client context in serverless environments
     const created = await this.prisma.$transaction(async (tx: any) => {
       const results: any[] = [];
-      for (const course of normalized) {
-        const r = await tx.course.create({
+      for (const courseData of normalized) {
+        const course = await tx.course.create({
           data: {
             milestoneId,
-            title: course.title,
-            description: course.description,
-            content: course.content,
-            duration: course.duration,
-            difficulty: course.difficulty,
-            orderIndex: course.orderIndex,
+            title: courseData.title,
+            description: courseData.description,
+            content: courseData.content,
+            duration: courseData.duration,
+            difficulty: courseData.difficulty,
+            orderIndex: courseData.orderIndex,
           },
         });
-        results.push(r);
+
+        // Create quiz if provided
+        if (courseData.quiz) {
+          const quiz = await tx.quiz.create({
+            data: {
+              courseId: course.id,
+              title: courseData.quiz.title,
+              description: courseData.quiz.description,
+              passingScore: courseData.quiz.passingScore,
+            },
+          });
+
+          // Create quiz questions
+          for (const question of courseData.quiz.questions) {
+            await tx.quizQuestion.create({
+              data: {
+                quizId: quiz.id,
+                question: question.question,
+                type: question.type,
+                options: question.options,
+                correctAnswer: question.correctAnswer,
+                explanation: question.explanation,
+                points: question.points,
+                orderIndex: question.orderIndex,
+              },
+            });
+          }
+        }
+
+        results.push(course);
       }
       return results;
     });
 
     this.logger.log(`Generated ${created.length} AI courses for milestone ${milestoneId}`);
 
-    return created.map(course => ({
-      id: course.id,
-      title: course.title,
-      description: course.description,
-      content: course.content,
-      duration: course.duration,
-      difficulty: course.difficulty,
-      isCompleted: course.isCompleted,
-      completedAt: course.completedAt,
-      orderIndex: course.orderIndex,
-      createdAt: course.createdAt,
-      updatedAt: course.updatedAt,
+    // Return with quiz data included
+    return await Promise.all(created.map(async (course) => {
+      const quiz = await this.prisma.quiz.findFirst({
+        where: { courseId: course.id },
+        include: {
+          questions: {
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+      });
+
+      return {
+        id: course.id,
+        title: course.title,
+        description: course.description,
+        content: course.content,
+        duration: course.duration,
+        difficulty: course.difficulty,
+        isCompleted: course.isCompleted,
+        completedAt: course.completedAt,
+        orderIndex: course.orderIndex,
+        quiz: quiz ? {
+          id: quiz.id,
+          title: quiz.title,
+          description: quiz.description,
+          passingScore: quiz.passingScore,
+          isRequired: quiz.isRequired,
+          questions: quiz.questions.map(q => ({
+            id: q.id,
+            question: q.question,
+            type: q.type,
+            options: q.options as string[] | undefined,
+            points: q.points,
+            orderIndex: q.orderIndex,
+            createdAt: q.createdAt,
+          })),
+          createdAt: quiz.createdAt,
+          updatedAt: quiz.updatedAt,
+        } : undefined,
+        createdAt: course.createdAt,
+        updatedAt: course.updatedAt,
+      };
     }));
   }
 
@@ -468,6 +589,18 @@ Constraints:
     if (dto.isCompleted !== undefined) {
       updateData.isCompleted = dto.isCompleted;
       updateData.completedAt = dto.isCompleted ? new Date() : null;
+
+      // If course is being marked as completed, update milestone progress
+      if (dto.isCompleted) {
+        // Get the course to find its milestone
+        const course = await this.prisma.course.findUnique({
+          where: { id: courseId },
+          select: { milestoneId: true },
+        });
+        if (course) {
+          await this.updateMilestoneProgress(course.milestoneId);
+        }
+      }
     }
 
     const course = await this.prisma.course.update({
@@ -497,6 +630,190 @@ Constraints:
     await this.prisma.course.delete({
       where: { id: courseId },
     });
+  }
+
+  async submitQuizAttempt(userId: string, dto: CreateQuizAttemptDto): Promise<QuizAttemptResponseDto> {
+    this.logger.log('=== SUBMIT QUIZ ATTEMPT ===');
+    this.logger.debug(JSON.stringify({ userId, quizId: dto.quizId }, null, 2));
+
+    // Get the quiz with questions
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: dto.quizId },
+      include: {
+        questions: {
+          orderBy: { orderIndex: 'asc' },
+        },
+        course: true,
+      },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    // Calculate score
+    let totalPoints = 0;
+    let earnedPoints = 0;
+    const answerRecords: any[] = [];
+
+    for (const userAnswer of dto.answers) {
+      const question = quiz.questions.find(q => q.id === userAnswer.questionId);
+      if (!question) continue;
+
+      const isCorrect = this.checkAnswer(question, userAnswer.answer);
+      const points = isCorrect ? question.points : 0;
+
+      totalPoints += question.points;
+      earnedPoints += points;
+
+      answerRecords.push({
+        questionId: question.id,
+        answer: userAnswer.answer,
+        isCorrect,
+        points,
+      });
+    }
+
+    const score = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
+    const isPassed = score >= quiz.passingScore;
+
+    // Create quiz attempt
+    const attempt = await this.prisma.quizAttempt.create({
+      data: {
+        userId,
+        quizId: dto.quizId,
+        score,
+        isPassed,
+        completedAt: new Date(),
+        timeSpent: 0, // TODO: Calculate actual time spent
+        answers: {
+          create: answerRecords.map(answer => ({
+            questionId: answer.questionId,
+            answer: answer.answer,
+            isCorrect: answer.isCorrect,
+            points: answer.points,
+          })),
+        },
+      },
+      include: {
+        answers: {
+          orderBy: { answeredAt: 'asc' },
+        },
+      },
+    });
+
+    // If quiz is passed and required, mark course as completed
+    if (isPassed && quiz.isRequired) {
+      await this.prisma.course.update({
+        where: { id: quiz.courseId },
+        data: {
+          isCompleted: true,
+          completedAt: new Date(),
+        },
+      });
+
+      // Update milestone progress
+      await this.updateMilestoneProgress(quiz.course.milestoneId);
+    }
+
+    return {
+      id: attempt.id,
+      userId: attempt.userId,
+      quizId: attempt.quizId,
+      score: attempt.score,
+      isPassed: attempt.isPassed,
+      timeSpent: attempt.timeSpent || undefined,
+      startedAt: attempt.startedAt,
+      completedAt: attempt.completedAt || undefined,
+      answers: attempt.answers.map(a => ({
+        id: a.id,
+        questionId: a.questionId,
+        answer: a.answer,
+        isCorrect: a.isCorrect,
+        points: a.points,
+        answeredAt: a.answeredAt,
+      })),
+      createdAt: attempt.createdAt,
+    };
+  }
+
+  async getQuizAttempts(userId: string, quizId: string): Promise<QuizAttemptResponseDto[]> {
+    const attempts = await this.prisma.quizAttempt.findMany({
+      where: {
+        userId,
+        quizId,
+      },
+      include: {
+        answers: {
+          orderBy: { answeredAt: 'asc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return attempts.map(attempt => ({
+      id: attempt.id,
+      userId: attempt.userId,
+      quizId: attempt.quizId,
+      score: attempt.score,
+      isPassed: attempt.isPassed,
+      timeSpent: attempt.timeSpent || undefined,
+      startedAt: attempt.startedAt,
+      completedAt: attempt.completedAt || undefined,
+      answers: attempt.answers.map(a => ({
+        id: a.id,
+        questionId: a.questionId,
+        answer: a.answer,
+        isCorrect: a.isCorrect,
+        points: a.points,
+        answeredAt: a.answeredAt,
+      })),
+      createdAt: attempt.createdAt,
+    }));
+  }
+
+  private checkAnswer(question: any, userAnswer: string): boolean {
+    const correctAnswer = question.correctAnswer.toLowerCase().trim();
+    const userAns = userAnswer.toLowerCase().trim();
+
+    switch (question.type) {
+      case 'multiple_choice':
+      case 'true_false':
+        return correctAnswer === userAns;
+      case 'short_answer':
+        // For short answer, do a case-insensitive comparison
+        return correctAnswer === userAns;
+      default:
+        return false;
+    }
+  }
+
+  private async updateMilestoneProgress(milestoneId: string): Promise<void> {
+    const milestone = await this.prisma.learningPlanMilestone.findUnique({
+      where: { id: milestoneId },
+      include: {
+        courses: true,
+      },
+    });
+
+    if (!milestone) return;
+
+    const totalCourses = milestone.courses.length;
+    const completedCourses = milestone.courses.filter(c => c.isCompleted).length;
+
+    if (totalCourses > 0 && completedCourses === totalCourses) {
+      // All courses completed, mark milestone as completed
+      await this.prisma.learningPlanMilestone.update({
+        where: { id: milestoneId },
+        data: {
+          isCompleted: true,
+          completedAt: new Date(),
+        },
+      });
+
+      // Update plan progress
+      await this.updatePlanProgress(milestone.planId);
+    }
   }
   // Removed malformed legacy logarithms generator. AI-based generation is used instead.
 

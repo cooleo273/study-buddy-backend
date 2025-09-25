@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request }
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { BadRequestException } from '@nestjs/common';
 import { LearningPlansService } from './learning-plans.service';
-import { CreateLearningPlanDto, UpdateLearningPlanDto, CreateMilestoneDto, UpdateMilestoneDto, CreateCourseDto, UpdateCourseDto, GenerateCoursesDto } from './dto/create-learning-plan.dto';
+import { CreateLearningPlanDto, UpdateLearningPlanDto, CreateMilestoneDto, UpdateMilestoneDto, CreateCourseDto, UpdateCourseDto, GenerateCoursesDto, CreateQuizAttemptDto, QuizAttemptResponseDto } from './dto/create-learning-plan.dto';
 import { LearningPlanResponseDto, LearningPlanSummaryDto, MilestoneResponseDto, CourseResponseDto } from './dto/learning-plan-response.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -281,5 +281,29 @@ export class LearningPlansController {
     @Param('courseId') courseId: string,
   ): Promise<void> {
     return this.learningPlansService.removeCourse(req.user.id, planId, milestoneId, courseId);
+  }
+
+  @Post('quiz-attempts')
+  @ApiOperation({ summary: 'Submit a quiz attempt' })
+  @ApiResponse({ status: 201, description: 'Quiz attempt submitted successfully', type: QuizAttemptResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Quiz not found' })
+  async submitQuizAttempt(
+    @Request() req,
+    @Body() createQuizAttemptDto: CreateQuizAttemptDto,
+  ): Promise<QuizAttemptResponseDto> {
+    return this.learningPlansService.submitQuizAttempt(req.user.id, createQuizAttemptDto);
+  }
+
+  @Get('quizzes/:quizId/attempts')
+  @ApiOperation({ summary: 'Get quiz attempts for a specific quiz' })
+  @ApiResponse({ status: 200, description: 'Quiz attempts retrieved successfully', type: [QuizAttemptResponseDto] })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getQuizAttempts(
+    @Request() req,
+    @Param('quizId') quizId: string,
+  ): Promise<QuizAttemptResponseDto[]> {
+    return this.learningPlansService.getQuizAttempts(req.user.id, quizId);
   }
 }

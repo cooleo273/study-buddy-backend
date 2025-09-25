@@ -75,6 +75,22 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prisma?.course || {};
   }
 
+  get quiz() {
+    return this.prisma?.quiz || {};
+  }
+
+  get quizQuestion() {
+    return this.prisma?.quizQuestion || {};
+  }
+
+  get quizAttempt() {
+    return this.prisma?.quizAttempt || {};
+  }
+
+  get quizAnswer() {
+    return this.prisma?.quizAnswer || {};
+  }
+
   get $transaction() {
     const tx = this.prisma?.$transaction;
     return tx ? tx.bind(this.prisma) : (async () => {});

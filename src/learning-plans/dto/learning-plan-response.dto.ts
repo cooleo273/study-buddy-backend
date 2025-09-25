@@ -1,5 +1,54 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export class QuizQuestionResponseDto {
+  @ApiProperty({ description: 'Question ID' })
+  id: string;
+
+  @ApiProperty({ description: 'Question text' })
+  question: string;
+
+  @ApiProperty({ description: 'Question type' })
+  type: string;
+
+  @ApiPropertyOptional({ description: 'Multiple choice options' })
+  options?: string[];
+
+  @ApiProperty({ description: 'Points for this question' })
+  points: number;
+
+  @ApiProperty({ description: 'Order index of the question' })
+  orderIndex: number;
+
+  @ApiProperty({ description: 'When question was created' })
+  createdAt: Date;
+}
+
+export class QuizResponseDto {
+  @ApiProperty({ description: 'Quiz ID' })
+  id: string;
+
+  @ApiProperty({ description: 'Quiz title' })
+  title: string;
+
+  @ApiPropertyOptional({ description: 'Quiz description' })
+  description?: string;
+
+  @ApiProperty({ description: 'Minimum passing score percentage' })
+  passingScore: number;
+
+  @ApiProperty({ description: 'Whether quiz is required to pass the course' })
+  isRequired: boolean;
+
+  @ApiProperty({ description: 'Quiz questions', type: [QuizQuestionResponseDto] })
+  questions: QuizQuestionResponseDto[];
+
+  @ApiProperty({ description: 'When quiz was created' })
+  createdAt: Date;
+
+  @ApiProperty({ description: 'When quiz was last updated' })
+  updatedAt: Date;
+}
+
 export class CourseResponseDto {
   @ApiProperty({ description: 'Course ID' })
   id: string;
@@ -27,6 +76,9 @@ export class CourseResponseDto {
 
   @ApiProperty({ description: 'Order index of the course' })
   orderIndex: number;
+
+  @ApiPropertyOptional({ description: 'Course quiz', type: QuizResponseDto })
+  quiz?: QuizResponseDto;
 
   @ApiProperty({ description: 'When course was created' })
   createdAt: Date;

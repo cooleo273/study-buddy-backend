@@ -122,6 +122,22 @@ export class CreateCourseDto {
   @IsNumber()
   @Min(0)
   orderIndex: number;
+
+  // Quiz data for internal use during generation
+  quiz?: {
+    title: string;
+    description?: string;
+    passingScore: number;
+    questions: Array<{
+      question: string;
+      type: string;
+      options?: string[];
+      correctAnswer: string;
+      explanation?: string;
+      points: number;
+      orderIndex: number;
+    }>;
+  };
 }
 
 export class UpdateCourseDto {
@@ -181,4 +197,56 @@ export class GenerateCoursesDto {
   @IsOptional()
   @IsString()
   difficulty?: string;
+}
+
+export class CreateQuizAttemptDto {
+  @ApiProperty({ description: 'Quiz ID' })
+  @IsString()
+  quizId: string;
+
+  @ApiProperty({ description: 'Array of answers', type: [Object] })
+  @IsArray()
+  answers: Array<{
+    questionId: string;
+    answer: string;
+  }>;
+}
+
+export class QuizAttemptResponseDto {
+  @ApiProperty({ description: 'Attempt ID' })
+  id: string;
+
+  @ApiProperty({ description: 'User ID' })
+  userId: string;
+
+  @ApiProperty({ description: 'Quiz ID' })
+  quizId: string;
+
+  @ApiProperty({ description: 'Score percentage (0-100)' })
+  score: number;
+
+  @ApiProperty({ description: 'Whether the attempt passed' })
+  isPassed: boolean;
+
+  @ApiProperty({ description: 'Time spent in seconds' })
+  timeSpent?: number;
+
+  @ApiProperty({ description: 'Attempt start time' })
+  startedAt: Date;
+
+  @ApiProperty({ description: 'Attempt completion time' })
+  completedAt?: Date;
+
+  @ApiProperty({ description: 'Individual question answers' })
+  answers: Array<{
+    id: string;
+    questionId: string;
+    answer: string;
+    isCorrect: boolean;
+    points: number;
+    answeredAt: Date;
+  }>;
+
+  @ApiProperty({ description: 'Creation timestamp' })
+  createdAt: Date;
 }
