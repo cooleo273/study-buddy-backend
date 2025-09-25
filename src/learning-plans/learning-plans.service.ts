@@ -3,11 +3,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateLearningPlanDto, UpdateLearningPlanDto, CreateMilestoneDto, UpdateMilestoneDto, CreateCourseDto, UpdateCourseDto, GenerateCoursesDto, CreateQuizAttemptDto, QuizAttemptResponseDto } from './dto/create-learning-plan.dto';
 import { LearningPlanResponseDto, LearningPlanSummaryDto, MilestoneResponseDto, CourseResponseDto } from './dto/learning-plan-response.dto';
 import { AiService } from '../ai/ai.service';
+import { YouTubeService, YouTubeVideo } from '../youtube/youtube.service';
 
 @Injectable()
 export class LearningPlansService {
   private readonly logger = new Logger(LearningPlansService.name);
-  constructor(private prisma: PrismaService, private ai: AiService) {}
+  constructor(private prisma: PrismaService, private ai: AiService, private youtube: YouTubeService) {}
 
   async create(userId: string, dto: CreateLearningPlanDto): Promise<LearningPlanResponseDto> {
     console.log('=== LEARNING PLANS SERVICE CREATE ===');
@@ -254,13 +255,6 @@ type Course = {
   duration: number; 
   difficulty: 'beginner' | 'intermediate' | 'advanced'; 
   orderIndex: number;
-  youtubeVideo: {
-    title: string;
-    url: string;
-    channelName: string;
-    duration: string;
-    description: string;
-  };
   quiz: {
     title: string;
     description?: string;
@@ -284,8 +278,7 @@ CRITICAL RULES:
 - Ensure quiz has 3-4 questions appropriate for the difficulty level.
 - For multiple_choice, provide 4 options with one correct answer.
 - For short_answer, correctAnswer should be the expected answer (case-insensitive).
-- For true_false, options should be ["True", "False"] and correctAnswer "True" or "False".
-- For youtubeVideo: Suggest ONE highly-rated, educational YouTube video (search results show high view counts and positive ratings) that perfectly matches the course topic. Include real YouTube URL, channelName, approximate duration, and brief description.`;
+- For true_false, options should be ["True", "False"] and correctAnswer "True" or "False".`;
 
   const userMessage = `Create ${count} comprehensive mini-courses for the milestone "${milestone.title}".
 Context: ${plan.title} - ${milestone.description ?? 'N/A'}
@@ -296,7 +289,6 @@ Requirements:
 - duration: ${difficulty === 'beginner' ? '30-60' : difficulty === 'intermediate' ? '60-90' : '90-150'} minutes
 - orderIndex: 0 to ${count - 1}
 - content with sections: Course Introduction, Learning Objectives (4-6), Key Concepts, Practical Examples (3-4), Summary
-- youtubeVideo: Suggest ONE highly-rated educational YouTube video that perfectly matches this course topic. Use real, existing videos with high view counts. Include: title, full YouTube URL, channelName, duration (e.g., "15:30"), and brief description of why it's relevant.
 - quiz: 3-4 questions testing understanding
 - titles: unique and specific
 - NO LaTeX, escape backslashes as \\\\
@@ -326,14 +318,11 @@ Requirements:
 
     let coursesFromAi = this.parseCoursesJson(aiResult.response);
     this.logger.log(`Parsed ${coursesFromAi.length} courses from AI response`);
-    if (coursesFromAi.length > 0) {
-      this.logger.log('First course youtubeVideo:', JSON.stringify(coursesFromAi[0].youtubeVideo, null, 2));
-    }
     // Retry: if parsing failed, ask AI to reformat to valid JSON array only
     if (!coursesFromAi || coursesFromAi.length === 0) {
       this.logger.warn('Primary AI response not parseable as JSON. Attempting reformat.');
       const reformatSystem = 'You are a formatter. Return VALID JSON ONLY. No markdown, no code fences, no explanations.';
-      const reformatUser = `Convert the following text into a valid JSON array of Course objects with exact keys: title (string), description (string), content (string), duration (number, minutes), difficulty (one of: "beginner" | "intermediate" | "advanced" in lowercase), orderIndex (number starting at 0, consecutive), youtubeVideo (object with title, url, channelName, duration, description), quiz (object with title, description?, passingScore, questions array). Ensure proper JSON escaping, no LaTeX, no extra text. Output JSON array only.\n\nTEXT:\n${aiResult.response}`;
+      const reformatUser = `Convert the following text into a valid JSON array of Course objects with exact keys: title (string), description (string), content (string), duration (number, minutes), difficulty (one of: "beginner" | "intermediate" | "advanced" in lowercase), orderIndex (number starting at 0, consecutive), quiz (object with title, description?, passingScore, questions array). Ensure proper JSON escaping, no LaTeX, no extra text. Output JSON array only.\n\nTEXT:\n${aiResult.response}`;
       try {
         const reformatted = await this.ai.generateContent({
           message: reformatUser,
@@ -374,13 +363,6 @@ Requirements:
         duration: this.clampDuration(Number(c.duration), difficulty),
         difficulty: ['beginner','intermediate','advanced'].includes(String(c.difficulty)) ? String(c.difficulty) : difficulty,
         orderIndex: typeof c.orderIndex === 'number' ? c.orderIndex : idx,
-        youtubeVideo: c.youtubeVideo ? {
-          title: String(c.youtubeVideo.title ?? ''),
-          url: String(c.youtubeVideo.url ?? ''),
-          channelName: String(c.youtubeVideo.channel ?? c.youtubeVideo.channelName ?? ''),
-          duration: String(c.youtubeVideo.duration ?? ''),
-          description: String(c.youtubeVideo.description ?? ''),
-        } : undefined,
         quiz: c.quiz ? {
           title: String(c.quiz.title ?? `Quiz for ${c.title}`),
           description: c.quiz.description ? String(c.quiz.description) : undefined,
@@ -410,7 +392,6 @@ Requirements:
             duration: courseData.duration,
             difficulty: courseData.difficulty,
             orderIndex: courseData.orderIndex,
-            youtubeVideo: courseData.youtubeVideo,
           },
         });
 
@@ -449,8 +430,42 @@ Requirements:
 
     this.logger.log(`Generated ${created.length} courses for milestone ${milestoneId}`);
 
+    // Search for YouTube videos for each course
+    const coursesWithVideos = await Promise.all(
+      created.map(async (course) => {
+        // Search for educational YouTube videos matching the course title/topic
+        const searchQuery = `${course.title} tutorial education learn`;
+        const videos = await this.youtube.searchEducationalVideos(searchQuery, 3);
+
+        // Select the best video (highest view count or first educational one)
+        const selectedVideo = videos.length > 0 ? videos[0] : null;
+
+        // Update course with YouTube video if found
+        if (selectedVideo) {
+          await this.prisma.course.update({
+            where: { id: course.id },
+            data: {
+              youtubeVideo: {
+                title: selectedVideo.title,
+                url: selectedVideo.url,
+                channelName: selectedVideo.channelName,
+                duration: selectedVideo.duration,
+                description: selectedVideo.description,
+              },
+            },
+          });
+
+          this.logger.log(`Added YouTube video "${selectedVideo.title}" to course "${course.title}"`);
+        } else {
+          this.logger.warn(`No suitable YouTube video found for course "${course.title}"`);
+        }
+
+        return course;
+      })
+    );
+
     // Return with quiz data included
-    return await Promise.all(created.map(async (course) => {
+    return await Promise.all(coursesWithVideos.map(async (course) => {
       const quiz = await this.prisma.quiz.findFirst({
         where: { courseId: course.id },
         include: {
@@ -508,13 +523,6 @@ Requirements:
         duration: difficulty === 'beginner' ? 45 : difficulty === 'intermediate' ? 75 : 105,
         difficulty,
         orderIndex: i,
-        youtubeVideo: {
-          title: `Introduction to ${baseTitle}`,
-          url: `https://www.youtube.com/watch?v=example${courseNumber}`,
-          channelName: 'Educational Channel',
-          duration: '10:30',
-          description: `A basic introduction to ${baseTitle.toLowerCase()} concepts for beginners.`,
-        },
         quiz: {
           title: `Quiz for ${baseTitle} - Part ${courseNumber}`,
           passingScore: 70,
