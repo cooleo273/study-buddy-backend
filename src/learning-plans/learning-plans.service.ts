@@ -257,7 +257,7 @@ type Course = {
   youtubeVideo: {
     title: string;
     url: string;
-    channel: string;
+    channelName: string;
     duration: string;
     description: string;
   };
@@ -285,7 +285,7 @@ CRITICAL RULES:
 - For multiple_choice, provide 4 options with one correct answer.
 - For short_answer, correctAnswer should be the expected answer (case-insensitive).
 - For true_false, options should be ["True", "False"] and correctAnswer "True" or "False".
-- For youtubeVideo: Suggest ONE highly-rated, educational YouTube video (search results show high view counts and positive ratings) that perfectly matches the course topic. Include real YouTube URL, channel name, approximate duration, and brief description.`;
+- For youtubeVideo: Suggest ONE highly-rated, educational YouTube video (search results show high view counts and positive ratings) that perfectly matches the course topic. Include real YouTube URL, channelName, approximate duration, and brief description.`;
 
   const userMessage = `Create ${count} comprehensive mini-courses for the milestone "${milestone.title}".
 Context: ${plan.title} - ${milestone.description ?? 'N/A'}
@@ -296,7 +296,7 @@ Requirements:
 - duration: ${difficulty === 'beginner' ? '30-60' : difficulty === 'intermediate' ? '60-90' : '90-150'} minutes
 - orderIndex: 0 to ${count - 1}
 - content with sections: Course Introduction, Learning Objectives (4-6), Key Concepts, Practical Examples (3-4), Summary
-- youtubeVideo: Suggest ONE highly-rated educational YouTube video that perfectly matches this course topic. Use real, existing videos with high view counts. Include: title, full YouTube URL, channel name, duration (e.g., "15:30"), and brief description of why it's relevant.
+- youtubeVideo: Suggest ONE highly-rated educational YouTube video that perfectly matches this course topic. Use real, existing videos with high view counts. Include: title, full YouTube URL, channelName, duration (e.g., "15:30"), and brief description of why it's relevant.
 - quiz: 3-4 questions testing understanding
 - titles: unique and specific
 - NO LaTeX, escape backslashes as \\\\
@@ -310,6 +310,7 @@ Requirements:
         systemPrompt,
         parameters: { temperature: 0.6, maxTokens: 2500 }
       });
+      this.logger.log('AI Response received:', aiResult.response.substring(0, 500) + '...');
     } catch (e) {
       this.logger.warn(`Initial AI call failed: ${e.message}`);
       // If initial call fails due to rate limit or overload, use fallback
@@ -324,11 +325,15 @@ Requirements:
     }
 
     let coursesFromAi = this.parseCoursesJson(aiResult.response);
+    this.logger.log(`Parsed ${coursesFromAi.length} courses from AI response`);
+    if (coursesFromAi.length > 0) {
+      this.logger.log('First course youtubeVideo:', JSON.stringify(coursesFromAi[0].youtubeVideo, null, 2));
+    }
     // Retry: if parsing failed, ask AI to reformat to valid JSON array only
     if (!coursesFromAi || coursesFromAi.length === 0) {
       this.logger.warn('Primary AI response not parseable as JSON. Attempting reformat.');
       const reformatSystem = 'You are a formatter. Return VALID JSON ONLY. No markdown, no code fences, no explanations.';
-      const reformatUser = `Convert the following text into a valid JSON array of Course objects with exact keys: title (string), description (string), content (string), duration (number, minutes), difficulty (one of: "beginner" | "intermediate" | "advanced" in lowercase), orderIndex (number starting at 0, consecutive), quiz (object with title, description?, passingScore, questions array). Ensure proper JSON escaping, no LaTeX, no extra text. Output JSON array only.\n\nTEXT:\n${aiResult.response}`;
+      const reformatUser = `Convert the following text into a valid JSON array of Course objects with exact keys: title (string), description (string), content (string), duration (number, minutes), difficulty (one of: "beginner" | "intermediate" | "advanced" in lowercase), orderIndex (number starting at 0, consecutive), youtubeVideo (object with title, url, channelName, duration, description), quiz (object with title, description?, passingScore, questions array). Ensure proper JSON escaping, no LaTeX, no extra text. Output JSON array only.\n\nTEXT:\n${aiResult.response}`;
       try {
         const reformatted = await this.ai.generateContent({
           message: reformatUser,
