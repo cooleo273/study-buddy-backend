@@ -80,7 +80,16 @@ export class LearningPlansService {
           orderBy: { orderIndex: 'asc' },
           include: {
             courses: {
-              orderBy: { orderIndex: 'asc' }
+              orderBy: { orderIndex: 'asc' },
+              include: {
+                quizzes: {
+                  include: {
+                    questions: {
+                      orderBy: { orderIndex: 'asc' },
+                    },
+                  },
+                },
+              },
             }
           }
         },
@@ -902,6 +911,24 @@ Requirements:
           isCompleted: course.isCompleted,
           completedAt: course.completedAt,
           orderIndex: course.orderIndex,
+          quiz: course.quizzes && course.quizzes.length > 0 ? {
+            id: course.quizzes[0].id,
+            title: course.quizzes[0].title,
+            description: course.quizzes[0].description,
+            passingScore: course.quizzes[0].passingScore,
+            isRequired: course.quizzes[0].isRequired,
+            questions: course.quizzes[0].questions.map(q => ({
+              id: q.id,
+              question: q.question,
+              type: q.type,
+              options: q.options as string[] | undefined,
+              points: q.points,
+              orderIndex: q.orderIndex,
+              createdAt: q.createdAt,
+            })),
+            createdAt: course.quizzes[0].createdAt,
+            updatedAt: course.quizzes[0].updatedAt,
+          } : undefined,
           createdAt: course.createdAt,
           updatedAt: course.updatedAt,
         })) || [],
