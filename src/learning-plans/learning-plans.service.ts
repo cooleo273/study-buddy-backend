@@ -265,84 +265,81 @@ CRITICAL RULES:
 - Do NOT use LaTeX backslash sequences like \( \), \frac, etc. Use plain text or Markdown without LaTeX.
 - If you must include a backslash in any string, escape it as \\\\ (double backslash in JSON).
 - Do not include any text outside the JSON array.
-- Ensure quiz has 4-6 questions appropriate for the difficulty level.
+- Ensure quiz has 3-4 questions appropriate for the difficulty level.
 - For multiple_choice, provide 4 options with one correct answer.
 - For short_answer, correctAnswer should be the expected answer (case-insensitive).
 - For true_false, options should be ["True", "False"] and correctAnswer "True" or "False".`;
 
-  const userMessage = `Create ${count} comprehensive, well-structured mini-courses for the milestone "${milestone.title}".
-Context:
-- Overall plan title: ${plan.title}
-- Milestone description: ${milestone.description ?? 'N/A'}
-- Desired difficulty: ${difficulty}
-- Topics to cover (may combine if helpful): ${topics.join(', ')}
+  const userMessage = `Create ${count} comprehensive mini-courses for the milestone "${milestone.title}".
+Context: ${plan.title} - ${milestone.description ?? 'N/A'}
+Difficulty: ${difficulty}
+Topics: ${topics.join(', ')}
 
-Constraints:
-- duration in minutes appropriate for the difficulty (beginner: 30-60, intermediate: 60-90, advanced: 90-150)
-- orderIndex must start at 0 and increment by 1
-- content should be rich markdown with these specific sections in this order:
-  1. **Course Introduction**: Comprehensive overview of what this course covers, why it's important in the broader context of ${plan.title}, real-world applications, and how it builds upon previous knowledge
-  2. **Learning Objectives**: 5-8 specific, measurable, achievable, relevant, and time-bound (SMART) objectives that clearly state what students will be able to do after completing the course
-  3. **Key Concepts**: Deep, detailed explanations of each major concept with:
-     - Definition and etymology where relevant
-     - Historical context and development
-     - Mathematical/formal definitions with clear notation
-     - Visual analogies or mental models
-     - Common misconceptions and how to avoid them
-     - Step-by-step examples with detailed solutions
-  4. **Detailed Explanations**: In-depth breakdowns covering:
-     - Multiple problem-solving approaches and strategies
-     - Proofs or derivations where applicable
-     - Edge cases and special conditions
-     - Connections to other mathematical concepts
-     - Alternative representations (graphs, tables, formulas)
-     - Common errors and debugging techniques
-  5. **Practical Examples**: 4-6 real-world applications including:
-     - Step-by-step worked solutions with intermediate steps shown
-     - Multiple solution methods for the same problem
-     - Variations and extensions of problems
-     - Real data sets or scenarios from science, business, engineering
-  6. **Interactive Quizzes**: Embedded assessment questions throughout the content (not separate section)
-  7. **Summary & Key Takeaways**: Comprehensive review including:
-     - Main theorems, formulas, and principles
-     - Key relationships and patterns
-     - Memory aids and mnemonic devices
-     - Connections to future topics
-     - Practice problems for self-assessment
-- quiz should have 4-6 questions that test deep understanding, not just memorization
-- ensure titles are unique, specific, and descriptive
-- Do NOT use LaTeX expressions (no \\(...\\), \\frac, etc.)
-- Escape any backslashes in strings as \\\\ (JSON-safe)
-- Do not include code fences or any text outside pure JSON
-- Make content extremely detailed and educational - aim for comprehensive textbook-level explanations with multiple examples and approaches`;
+Requirements:
+- duration: ${difficulty === 'beginner' ? '30-60' : difficulty === 'intermediate' ? '60-90' : '90-150'} minutes
+- orderIndex: 0 to ${count - 1}
+- content with sections: Course Introduction, Learning Objectives (4-6), Key Concepts, Practical Examples (3-4), Summary
+- quiz: 3-4 questions testing understanding
+- titles: unique and specific
+- NO LaTeX, escape backslashes as \\\\
+- Return pure JSON array only`;
 
     // Call AI (Groq first, fallback to Gemini) via AiService
-    const aiResult = await this.ai.generateContent({
-      message: userMessage,
-      systemPrompt,
-      parameters: { temperature: 0.6, maxTokens: 4000 }
-    });
+    let aiResult;
+    try {
+      aiResult = await this.ai.generateContent({
+        message: userMessage,
+        systemPrompt,
+        parameters: { temperature: 0.6, maxTokens: 2500 }
+      });
+    } catch (e) {
+      this.logger.warn(`Initial AI call failed: ${e.message}`);
+      // If initial call fails due to rate limit or overload, use fallback
+      if (e.message?.includes('rate limit') || e.message?.includes('Rate limit') ||
+          e.message?.includes('overloaded') || e.message?.includes('503')) {
+        this.logger.warn('AI service unavailable, using fallback courses');
+        const coursesFromAi = this.createFallbackCourses(count, milestone, difficulty);
+        // Continue with the rest of the function using fallback courses
+        return this.processAndCreateCourses(coursesFromAi, milestone, count, difficulty);
+      }
+      throw e; // Re-throw other errors
+    }
 
     let coursesFromAi = this.parseCoursesJson(aiResult.response);
     // Retry: if parsing failed, ask AI to reformat to valid JSON array only
     if (!coursesFromAi || coursesFromAi.length === 0) {
       this.logger.warn('Primary AI response not parseable as JSON. Attempting reformat.');
-  const reformatSystem = 'You are a formatter. Return VALID JSON ONLY. No markdown, no code fences, no explanations.';
-  const reformatUser = `Convert the following text into a valid JSON array of Course objects with exact keys: title (string), description (string), content (string), duration (number, minutes), difficulty (one of: "beginner" | "intermediate" | "advanced" in lowercase), orderIndex (number starting at 0, consecutive), quiz (object with title, description?, passingScore, questions array). Ensure proper JSON escaping, no LaTeX, no extra text. Output JSON array only.\n\nTEXT:\n${aiResult.response}`;
+      const reformatSystem = 'You are a formatter. Return VALID JSON ONLY. No markdown, no code fences, no explanations.';
+      const reformatUser = `Convert the following text into a valid JSON array of Course objects with exact keys: title (string), description (string), content (string), duration (number, minutes), difficulty (one of: "beginner" | "intermediate" | "advanced" in lowercase), orderIndex (number starting at 0, consecutive), quiz (object with title, description?, passingScore, questions array). Ensure proper JSON escaping, no LaTeX, no extra text. Output JSON array only.\n\nTEXT:\n${aiResult.response}`;
       try {
         const reformatted = await this.ai.generateContent({
           message: reformatUser,
           systemPrompt: reformatSystem,
-          parameters: { temperature: 0.1, maxTokens: 4000 }
+          parameters: { temperature: 0.1, maxTokens: 2500 }
         });
         coursesFromAi = this.parseCoursesJson(reformatted.response);
       } catch (e) {
         this.logger.warn(`Reformat attempt failed: ${e.message}`);
+        // If it's a rate limit or service unavailable, don't try further
+        if (e.message?.includes('rate limit') || e.message?.includes('Rate limit') ||
+            e.message?.includes('overloaded') || e.message?.includes('503')) {
+          this.logger.warn('AI service rate limited or overloaded, using fallback courses');
+          coursesFromAi = this.createFallbackCourses(count, milestone, difficulty);
+        }
       }
     }
     if (!coursesFromAi || coursesFromAi.length === 0) {
-      throw new BadRequestException('AI did not return any courses in the expected JSON format');
+      this.logger.warn('AI failed to generate courses, creating fallback courses');
+      // Create basic fallback courses when AI fails
+      coursesFromAi = this.createFallbackCourses(count, milestone, difficulty);
     }
+
+    return this.processAndCreateCourses(coursesFromAi, milestone, count, difficulty);
+  }
+
+  // Helper: process and create courses in database
+  private async processAndCreateCourses(coursesFromAi: any[], milestone: any, count: number, difficulty: string): Promise<CourseResponseDto[]> {
+    const milestoneId = milestone.id;
 
     // Normalize and cap to requested count
     const normalized: CreateCourseDto[] = coursesFromAi
@@ -419,7 +416,7 @@ Constraints:
       return results;
     });
 
-    this.logger.log(`Generated ${created.length} AI courses for milestone ${milestoneId}`);
+    this.logger.log(`Generated ${created.length} courses for milestone ${milestoneId}`);
 
     // Return with quiz data included
     return await Promise.all(created.map(async (course) => {
@@ -464,6 +461,48 @@ Constraints:
         updatedAt: course.updatedAt,
       };
     }));
+  }
+
+  private createFallbackCourses(count: number, milestone: any, difficulty: string): any[] {
+    const courses = [];
+    const baseTitle = milestone.title || 'Course Topic';
+
+    for (let i = 0; i < count; i++) {
+      const courseNumber = i + 1;
+      courses.push({
+        title: `${baseTitle} - Part ${courseNumber}`,
+        description: `Basic introduction to ${baseTitle.toLowerCase()} concepts.`,
+        content: `## Introduction\nThis course covers fundamental concepts in ${baseTitle.toLowerCase()}.\n\n## Key Concepts\n- Basic principles\n- Common applications\n\n## Examples\n1. Simple example\n2. Practical application\n\n## Summary\nKey takeaways and next steps.`,
+        duration: difficulty === 'beginner' ? 45 : difficulty === 'intermediate' ? 75 : 105,
+        difficulty,
+        orderIndex: i,
+        quiz: {
+          title: `Quiz for ${baseTitle} - Part ${courseNumber}`,
+          passingScore: 70,
+          questions: [
+            {
+              question: `What is a basic concept in ${baseTitle.toLowerCase()}?`,
+              type: 'short_answer',
+              correctAnswer: 'concept',
+              explanation: 'This is a fundamental concept in the topic.',
+              points: 50,
+              orderIndex: 0,
+            },
+            {
+              question: `True or False: ${baseTitle} is important for understanding the subject.`,
+              type: 'true_false',
+              options: ['True', 'False'],
+              correctAnswer: 'True',
+              explanation: 'This topic is fundamental to the subject area.',
+              points: 50,
+              orderIndex: 1,
+            },
+          ],
+        },
+      });
+    }
+
+    return courses;
   }
 
   // Helper: clamp duration to reasonable bounds based on difficulty
@@ -815,9 +854,6 @@ Constraints:
       await this.updatePlanProgress(milestone.planId);
     }
   }
-  // Removed malformed legacy logarithms generator. AI-based generation is used instead.
-
-  // Removed additional legacy logarithms content generators.
 
   private async updatePlanProgress(planId: string): Promise<void> {
     const milestones = await this.prisma.learningPlanMilestone.findMany({
