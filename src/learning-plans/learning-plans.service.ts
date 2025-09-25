@@ -773,14 +773,19 @@ Requirements:
       timeSpent: attempt.timeSpent || undefined,
       startedAt: attempt.startedAt,
       completedAt: attempt.completedAt || undefined,
-      answers: attempt.answers.map(a => ({
-        id: a.id,
-        questionId: a.questionId,
-        answer: a.answer,
-        isCorrect: a.isCorrect,
-        points: a.points,
-        answeredAt: a.answeredAt,
-      })),
+      answers: attempt.answers.map(a => {
+        const question = quiz.questions.find(q => q.id === a.questionId);
+        return {
+          id: a.id,
+          questionId: a.questionId,
+          answer: a.answer,
+          isCorrect: a.isCorrect,
+          points: a.points,
+          answeredAt: a.answeredAt,
+          correctAnswer: question?.correctAnswer,
+          explanation: question?.explanation,
+        };
+      }),
       createdAt: attempt.createdAt,
     };
   }

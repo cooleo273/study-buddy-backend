@@ -245,6 +245,8 @@ export class QuizAttemptResponseDto {
     isCorrect: boolean;
     points: number;
     answeredAt: Date;
+    correctAnswer?: string;  // Include correct answer for learning
+    explanation?: string;    // Include explanation if available
   }>;
 
   @ApiProperty({ description: 'Creation timestamp' })
