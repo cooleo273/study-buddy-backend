@@ -226,7 +226,7 @@ export class ChatService {
     }
   }
 
-  async addMessageToSession(sessionId: string, userId: string, messageData: { content: string; role: 'user' | 'assistant' }) {
+  async addMessageToSession(sessionId: string, userId: string, messageData: { content: string; role: 'user' | 'assistant'; conversationId?: string }) {
     console.log('=== ADD MESSAGE TO SESSION START ===');
     console.log('Session ID:', sessionId);
     console.log('User ID:', userId);
@@ -244,19 +244,144 @@ export class ChatService {
 
       const updatedMessages = [...currentMessages];
 
-      // Generate conversation ID for this turn
-      const conversationId = `conv_${sessionId}_${Date.now()}`;
-      console.log('Generated conversation ID:', conversationId);
+      // Use provided conversationId or generate new one
+      const conversationId = messageData.conversationId || `conv_${sessionId}_${Date.now()}`;
+      console.log('Using conversation ID:', conversationId);
 
-      // Add the user message
-      const userMessage: ChatMessageDto = {
+      // Check if this is an assistant message and if there's already an assistant message with the same conversationId
+      if (messageData.role === 'assistant') {
+        const existingAssistantIndex = updatedMessages.findIndex(
+          msg => msg.role === 'assistant' && msg.conversationId === conversationId
+        );
+        
+        if (existingAssistantIndex !== -1) {
+          console.log('Updating existing assistant message at index:', existingAssistantIndex);
+          // Update the existing assistant message
+          updatedMessages[existingAssistantIndex] = {
+            ...updatedMessages[existingAssistantIndex],
+            content: messageData.content,
+            createdAt: new Date().toISOString(), // Update timestamp
+          };
+          
+          console.log('Final messages to be saved:', updatedMessages.length);
+          console.log('Messages to be saved:', updatedMessages.map(m => ({
+            role: m.role,
+            contentLength: m.content?.length || 0,
+            conversationId: m.conversationId,
+            createdAt: m.createdAt
+          })));
+
+          console.log('=== ABOUT TO SAVE TO DATABASE ===');
+          const result = await this.prisma.chatSession.update({
+            where: { id: sessionId },
+            data: {
+              messages: updatedMessages as any,
+              updatedAt: new Date(),
+            },
+            select: {
+              id: true,
+              topic: true,
+              messages: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          });
+
+          console.log('=== DATABASE SAVE COMPLETED ===');
+          console.log('Saved session ID:', result.id);
+          const savedMessages = (result.messages as any) || [];
+          console.log('Saved messages count:', savedMessages.length);
+          console.log('Saved messages preview:', savedMessages.map((m: any) => ({
+            role: m.role,
+            contentLength: m.content?.length || 0,
+            conversationId: m.conversationId
+          })));
+
+          console.log('=== ADD MESSAGE TO SESSION END ===');
+          return result;
+        }
+      }
+
+      // If this is an assistant message and no existing one with same conversationId, but there are other assistant messages,
+      // check if we should update the most recent one instead (to prevent duplicates from streaming)
+      if (messageData.role === 'assistant') {
+        const allAssistantMessages = updatedMessages.filter(msg => msg.role === 'assistant');
+        if (allAssistantMessages.length > 0) {
+          // Find the most recent assistant message
+          const mostRecentAssistantIndex = updatedMessages.reduce((lastIndex, msg, index) => {
+            if (msg.role === 'assistant') {
+              return index;
+            }
+            return lastIndex;
+          }, -1);
+          
+          if (mostRecentAssistantIndex !== -1) {
+            console.log('Updating most recent assistant message at index:', mostRecentAssistantIndex, 'to prevent duplicates');
+            // Update the most recent assistant message
+            updatedMessages[mostRecentAssistantIndex] = {
+              ...updatedMessages[mostRecentAssistantIndex],
+              content: messageData.content,
+              createdAt: new Date().toISOString(), // Update timestamp
+            };
+            
+            console.log('Final messages to be saved:', updatedMessages.length);
+            console.log('Messages to be saved:', updatedMessages.map(m => ({
+              role: m.role,
+              contentLength: m.content?.length || 0,
+              conversationId: m.conversationId,
+              createdAt: m.createdAt
+            })));
+
+            console.log('=== ABOUT TO SAVE TO DATABASE ===');
+            const result = await this.prisma.chatSession.update({
+              where: { id: sessionId },
+              data: {
+                messages: updatedMessages as any,
+                updatedAt: new Date(),
+              },
+              select: {
+                id: true,
+                topic: true,
+                messages: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            });
+
+            console.log('=== DATABASE SAVE COMPLETED ===');
+            console.log('Saved session ID:', result.id);
+            const savedMessages = (result.messages as any) || [];
+            console.log('Saved messages count:', savedMessages.length);
+            console.log('Saved messages preview:', savedMessages.map((m: any) => ({
+              role: m.role,
+              contentLength: m.content?.length || 0,
+              conversationId: m.conversationId
+            })));
+
+            console.log('=== ADD MESSAGE TO SESSION END ===');
+            return result;
+          }
+        }
+      }
+
+      // If this is an assistant message, remove all existing assistant messages to keep only one
+      if (messageData.role === 'assistant') {
+        // Filter out all existing assistant messages
+        const filteredMessages = updatedMessages.filter(msg => msg.role !== 'assistant');
+        updatedMessages.length = 0; // Clear the array
+        updatedMessages.push(...filteredMessages); // Add back non-assistant messages
+        console.log('Removed all existing assistant messages to keep only one');
+      }
+
+      // Add the message
+      const newMessage: ChatMessageDto = {
         role: messageData.role,
         content: messageData.content,
         createdAt: new Date().toISOString(),
         conversationId,
       };
-      updatedMessages.push(userMessage);
-      console.log('User message added, total messages now:', updatedMessages.length);
+      updatedMessages.push(newMessage);
+      console.log('Message added, total messages now:', updatedMessages.length);  
 
       // If it's a user message, generate AI response
       if (messageData.role === 'user') {

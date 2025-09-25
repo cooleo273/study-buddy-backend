@@ -237,16 +237,16 @@ export class AiService {
   }
 
   async *streamContent(dto: GenerateRequestDto): AsyncGenerator<string, void, unknown> {
-    // Try Gemini first for streaming
+    // Try Groq first for streaming since we want detailed responses like generateContent
     try {
-      yield* this.streamWithGemini(dto);
-    } catch (error) {
-      this.logger.warn(`Gemini streaming failed, trying Groq: ${error.message}`);
-      // Fallback to Groq
+      yield* this.streamWithGroq(dto);
+    } catch (error) { 
+      this.logger.warn(`Groq streaming failed, trying Gemini: ${error.message}`);
+      // Fallback to Gemini
       try {
-        yield* this.streamWithGroq(dto);
-      } catch (groqError) {
-        this.logger.error(`Both Gemini and Groq streaming failed. Gemini: ${error.message}, Groq: ${groqError.message}`);
+        yield* this.streamWithGemini(dto);
+      } catch (geminiError) {
+        this.logger.error(`Both Groq and Gemini streaming failed. Groq: ${error.message}, Gemini: ${geminiError.message}`);
         throw new BadRequestException('All AI streaming services are currently unavailable');
       }
     }

@@ -64,6 +64,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    console.log('Auth Service signIn - JWT_SECRET:', process.env.JWT_SECRET ? 'SET' : 'NOT SET');
+    console.log('JWT_SECRET length:', process.env.JWT_SECRET?.length);
+
     // Generate tokens
     const accessPayload = { userId: user.id, email: user.email, type: 'access' };
     const refreshPayload = { userId: user.id, email: user.email, type: 'refresh' };

@@ -94,7 +94,8 @@ export class ChatController {
 
       return this.chatService.addMessageToSession(sessionId, req.user.id, {
         content: lastMessage.content,
-        role: lastMessage.role
+        role: lastMessage.role,
+        conversationId: lastMessage.conversationId
       });
     }
 
@@ -121,7 +122,7 @@ export class ChatController {
   async addMessage(
     @Req() req,
     @Param('sessionId') sessionId: string,
-    @Body() messageData: { content: string; role: 'user' | 'assistant' },
+    @Body() messageData: { content: string; role: 'user' | 'assistant'; conversationId?: string },
   ) {
     return this.chatService.addMessageToSession(sessionId, req.user.id, messageData);
   }
