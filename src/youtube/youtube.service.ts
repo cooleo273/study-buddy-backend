@@ -51,6 +51,7 @@ export class YouTubeService {
       // Search with multiple queries to get better results
       for (const searchQuery of searchQueries) {
         try {
+          this.logger.log(`Searching YouTube with query: "${searchQuery}"`);
           const searchResponse = await this.youtube.search.list({
             part: ['snippet'],
             q: searchQuery,
@@ -66,6 +67,7 @@ export class YouTubeService {
             const videoIds = searchResponse.data.items
               .map(item => item.id?.videoId)
               .filter(id => id) as string[];
+            this.logger.log(`Found ${videoIds.length} video IDs for query "${searchQuery}"`);
             allVideoIds = [...allVideoIds, ...videoIds];
           }
         } catch (error) {
@@ -90,6 +92,8 @@ export class YouTubeService {
       if (!videosResponse.data.items) {
         return [];
       }
+
+      this.logger.log(`Retrieved ${videosResponse.data.items.length} video details`);
 
       const videos: YouTubeVideo[] = videosResponse.data.items
         .map(video => {
@@ -178,11 +182,13 @@ export class YouTubeService {
             premium.toLowerCase().includes(channelName)
           );
 
-          // Strict filtering criteria
+          // Relaxed filtering criteria for testing
           const meetsCriteria =
-            video!.durationInSeconds >= 300 && // At least 5 minutes
-            video!.viewCount >= 50000 && // At least 50K views
+            video!.durationInSeconds >= 60 && // At least 1 minute (was 5 minutes)
+            video!.viewCount >= 1000 && // At least 1K views (was 50K)
             isPremiumChannel; // Must be from premium educational channels
+
+          this.logger.log(`Video "${video!.title}" by ${video!.channelName}: ${video!.durationInSeconds}s, ${video!.viewCount} views, premium: ${isPremiumChannel}, meets criteria: ${meetsCriteria}`);
 
           return meetsCriteria;
         })
