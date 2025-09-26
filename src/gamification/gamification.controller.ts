@@ -2,7 +2,7 @@ import { Controller, Get, Param, Query, Post, UseGuards, Request } from '@nestjs
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GamificationService } from './gamification.service';
-import { UserStatsResponseDto, LeaderboardEntryDto } from './dto/gamification.dto';
+import { UserStatsResponseDto, LeaderboardEntryDto, BadgeResponseDto } from './dto/gamification.dto';
 
 @ApiTags('gamification')
 @ApiBearerAuth('JWT-auth')
@@ -16,6 +16,13 @@ export class GamificationController {
   @ApiResponse({ status: 200, description: 'User stats retrieved successfully', type: UserStatsResponseDto })
   async getUserStats(@Request() req): Promise<UserStatsResponseDto> {
     return this.gamificationService.getUserStats(req.user.id);
+  }
+
+  @Get('badges')
+  @ApiOperation({ summary: 'Get all available badges' })
+  @ApiResponse({ status: 200, description: 'Badges retrieved successfully', type: [BadgeResponseDto] })
+  async getAllBadges(): Promise<BadgeResponseDto[]> {
+    return this.gamificationService.getAllBadges();
   }
 
   @Get('leaderboard')

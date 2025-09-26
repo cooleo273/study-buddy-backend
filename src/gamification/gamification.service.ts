@@ -182,6 +182,23 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
+  // Get all available badges
+  async getAllBadges(): Promise<BadgeResponseDto[]> {
+    const badges = await this.prisma.badge.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return badges.map(badge => ({
+      id: badge.id,
+      name: badge.name,
+      description: badge.description || undefined,
+      icon: badge.icon || undefined,
+      points: badge.points,
+      criteria: badge.criteria as any || undefined,
+      createdAt: badge.createdAt,
+    }));
+  }
+
   // Seed initial badges
   async seedBadges(): Promise<void> {
     const badges = [
