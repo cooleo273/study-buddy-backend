@@ -125,7 +125,7 @@ export class DocumentService {
   async generateQuestion(userId: string, dto: GenerateQuestionDto) {
     // Find relevant document chunks
     const queryEmbedding = await this.aiService.generateEmbedding(
-      `Generate a matric-style question for grade ${dto.grade} ${dto.subject} about ${dto.topic || 'general knowledge'}`
+      dto.topic || 'general knowledge'
     );
 
     const relevantChunks = await this.prisma.$queryRaw<
@@ -133,7 +133,7 @@ export class DocumentService {
     >`
       SELECT id, content, 1 - (embedding <=> ${queryEmbedding}::vector) as similarity
       FROM "DocumentChunk"
-      WHERE 1 - (embedding <=> ${queryEmbedding}::vector) > 0.7
+      WHERE 1 - (embedding <=> ${queryEmbedding}::vector) > 0.3
       ORDER BY embedding <=> ${queryEmbedding}::vector
       LIMIT 5
     `;
