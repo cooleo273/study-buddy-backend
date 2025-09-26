@@ -150,17 +150,21 @@ export class DocumentService {
 
 ${context}
 
-Generate a multiple choice question suitable for matric examination. The question should be challenging and test deep understanding. Provide:
-- Question: [the question text]
-- Options: A) [option1], B) [option2], C) [option3], D) [option4]
-- Correct Answer: [the letter of the correct answer]
-- Explanation: [brief explanation of why the answer is correct]
+Generate 10 multiple choice questions suitable for matric examination. Each question should be challenging and test deep understanding. For each question, provide:
+Question: [the question text]
+Options: A) [option1], B) [option2], C) [option3], D) [option4]
+Correct Answer: [the letter of the correct answer]
+Explanation: [brief explanation of why the answer is correct]
+
+Separate each question with ---
 
 Format your response exactly like this example:
 Question: What is the capital of France?
 Options: A) London, B) Paris, C) Berlin, D) Rome
 Correct Answer: B
-Explanation: Paris is the capital and most populous city of France.`;
+Explanation: Paris is the capital and most populous city of France.
+---
+Question: ...`;
 
     const response = await this.aiService.generateContent({
       message: prompt,
@@ -169,52 +173,66 @@ Explanation: Paris is the capital and most populous city of France.`;
 
     console.log('AI Response for question generation:', response.response);
 
-    // Parse the response
-    const lines = response.response.split('\n').map(line => line.trim()).filter(line => line);
-    
-    let question = '';
-    let options: string[] = [];
-    let correctAnswer = '';
-    let explanation = '';
+    // Split response into individual questions
+    const questionBlocks = response.response.split('---').map(block => block.trim()).filter(block => block);
 
-    for (const line of lines) {
-      if (line.startsWith('Question:')) {
-        question = line.replace('Question:', '').trim();
-      } else if (line.startsWith('Options:')) {
-        const optionsText = line.replace('Options:', '').trim();
-        options = optionsText.split(',').map(opt => opt.trim());
-      } else if (line.startsWith('Correct Answer:')) {
-        correctAnswer = line.replace('Correct Answer:', '').trim();
-      } else if (line.startsWith('Explanation:')) {
-        explanation = line.replace('Explanation:', '').trim();
+    const generatedQuestions = [];
+
+    for (const block of questionBlocks) {
+      // Parse the response
+      const lines = block.split('\n').map(line => line.trim()).filter(line => line);
+      
+      let question = '';
+      let options: string[] = [];
+      let correctAnswer = '';
+      let explanation = '';
+
+      for (const line of lines) {
+        if (line.startsWith('Question:')) {
+          question = line.replace('Question:', '').trim();
+        } else if (line.startsWith('Options:')) {
+          const optionsText = line.replace('Options:', '').trim();
+          options = optionsText.split(',').map(opt => opt.trim());
+        } else if (line.startsWith('Correct Answer:')) {
+          correctAnswer = line.replace('Correct Answer:', '').trim();
+        } else if (line.startsWith('Explanation:')) {
+          explanation = line.replace('Explanation:', '').trim();
+        }
       }
-    }
 
-    // Validate the response
-    if (!question || options.length !== 4 || !correctAnswer || !explanation) {
-      throw new BadRequestException('Failed to generate a valid multiple choice question');
-    }
+      // Validate the response
+      if (!question || options.length !== 4 || !correctAnswer || !explanation) {
+        console.log('Invalid question block:', block);
+        continue; // Skip invalid questions
+      }
 
-    // Save the generated question
-    const generatedQuestion = await this.prisma.generatedQuestion.create({
-      data: {
-        userId,
-        question,
-        answer: `${correctAnswer}) ${options.find(opt => opt.startsWith(correctAnswer + ')'))?.substring(3) || 'Answer not found'}`, // Legacy field
+      // Save the generated question
+      const generatedQuestion = await this.prisma.generatedQuestion.create({
+        data: {
+          userId,
+          question,
+          answer: `${correctAnswer}) ${options.find(opt => opt.startsWith(correctAnswer + ')'))?.substring(3) || 'Answer not found'}`, // Legacy field
+          options,
+          correctAnswer,
+          explanation,
+          subject: dto.subject,
+          grade: dto.grade,
+        },
+      });
+
+      generatedQuestions.push({
+        ...generatedQuestion,
         options,
         correctAnswer,
         explanation,
-        subject: dto.subject,
-        grade: dto.grade,
-      },
-    });
+      });
+    }
 
-    return {
-      ...generatedQuestion,
-      options,
-      correctAnswer,
-      explanation,
-    };
+    if (generatedQuestions.length === 0) {
+      throw new BadRequestException('Failed to generate any valid multiple choice questions');
+    }
+
+    return generatedQuestions;
   }
 
   async getUserQuestions(userId: string) {
