@@ -4,11 +4,12 @@ import { CreateLearningPlanDto, UpdateLearningPlanDto, CreateMilestoneDto, Updat
 import { LearningPlanResponseDto, LearningPlanSummaryDto, MilestoneResponseDto, CourseResponseDto } from './dto/learning-plan-response.dto';
 import { AiService } from '../ai/ai.service';
 import { YouTubeService, YouTubeVideo } from '../youtube/youtube.service';
+import { GamificationService } from '../gamification/gamification.service';
 
 @Injectable()
 export class LearningPlansService {
   private readonly logger = new Logger(LearningPlansService.name);
-  constructor(private prisma: PrismaService, private ai: AiService, private youtube: YouTubeService) {}
+  constructor(private prisma: PrismaService, private ai: AiService, private youtube: YouTubeService, private gamification: GamificationService) {}
 
   async create(userId: string, dto: CreateLearningPlanDto): Promise<LearningPlanResponseDto> {
     console.log('=== LEARNING PLANS SERVICE CREATE ===');
@@ -688,6 +689,11 @@ Requirements:
         if (course) {
           await this.updateMilestoneProgress(course.milestoneId);
         }
+
+        // Award points and check badges
+        await this.gamification.awardPoints(userId, 10, 'Course completed');
+        await this.gamification.updateStreak(userId);
+        await this.gamification.checkAndAwardBadges(userId);
       }
     }
 
@@ -803,6 +809,11 @@ Requirements:
 
       // Update milestone progress
       await this.updateMilestoneProgress(quiz.course.milestoneId);
+
+      // Award points and check badges
+      await this.gamification.awardPoints(userId, 15, 'Quiz passed');
+      await this.gamification.updateStreak(userId);
+      await this.gamification.checkAndAwardBadges(userId);
     }
 
     return {

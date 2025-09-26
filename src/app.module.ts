@@ -10,6 +10,7 @@ import { EmailModule } from './email/email.module';
 import { AiModule } from './ai/ai.module';
 import { LearningPlansModule } from './learning-plans/learning-plans.module';
 import { YouTubeModule } from './youtube/youtube.module';
+import { GamificationModule } from './gamification/gamification.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { YouTubeModule } from './youtube/youtube.module';
     AiModule,
     LearningPlansModule,
     YouTubeModule,
+    GamificationModule,
   ],
 })
 export class AppModule {}

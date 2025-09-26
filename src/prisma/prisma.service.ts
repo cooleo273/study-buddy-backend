@@ -91,6 +91,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prisma?.quizAnswer || {};
   }
 
+  get badge() {
+    return this.prisma?.badge || {};
+  }
+
+  get userBadge() {
+    return this.prisma?.userBadge || {};
+  }
+
   get $transaction() {
     const tx = this.prisma?.$transaction;
     return tx ? tx.bind(this.prisma) : (async () => {});
