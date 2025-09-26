@@ -116,6 +116,11 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return queryRaw ? queryRaw.bind(this.prisma) : (async () => {});
   }
 
+  get $executeRaw() {
+    const executeRaw = this.prisma?.$executeRaw;
+    return executeRaw ? executeRaw.bind(this.prisma) : (async () => {});
+  }
+
   get $transaction() {
     const tx = this.prisma?.$transaction;
     return tx ? tx.bind(this.prisma) : (async () => {});

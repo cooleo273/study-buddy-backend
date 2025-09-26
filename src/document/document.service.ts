@@ -50,20 +50,15 @@ export class DocumentService {
     console.log(`Processing ${chunks.length} chunks for document ${documentId}`);
     const embeddings = await this.generateEmbeddings(chunks);
 
-    const chunkData = chunks.map((chunk, index) => ({
-      documentId,
-      content: chunk,
-      embedding: embeddings[index],
-      chunkIndex: index,
-    }));
-
-    // Use individual create calls instead of createMany for vector support
-    for (let i = 0; i < chunkData.length; i++) {
-      await this.prisma.documentChunk.create({
-        data: chunkData[i],
-      });
+    // Use raw SQL to insert chunks with vector embeddings
+    for (let i = 0; i < chunks.length; i++) {
+      const embeddingString = `[${embeddings[i].join(',')}]`;
+      await this.prisma.$executeRaw`
+        INSERT INTO "DocumentChunk" ("id", "documentId", "content", "embedding", "chunkIndex")
+        VALUES (gen_random_uuid(), ${documentId}, ${chunks[i]}, ${embeddingString}::vector(768), ${i})
+      `;
       if ((i + 1) % 10 === 0) {
-        console.log(`Created ${i + 1}/${chunkData.length} chunks`);
+        console.log(`Created ${i + 1}/${chunks.length} chunks`);
       }
     }
     console.log(`Finished processing chunks for document ${documentId}`);
