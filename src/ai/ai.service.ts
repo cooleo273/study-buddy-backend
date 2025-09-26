@@ -6,7 +6,9 @@ import { GenerateRequestDto, GenerateResponseDto } from './dto/ai.dto';
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly geminiModel = 'gemini-1.5-flash';
+  private readonly geminiEmbeddingModel = 'text-embedding-004';
   private readonly geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
+  private readonly geminiEmbeddingUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiEmbeddingModel}:embedContent`;
   private readonly groqApiUrl = 'https://api.groq.com/openai/v1/chat/completions';
   private readonly groqModel = 'openai/gpt-oss-20b';
 
@@ -419,5 +421,48 @@ export class AiService {
     }
 
     return chunks;
+  }
+
+  async generateEmbedding(text: string): Promise<number[]> {
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      throw new BadRequestException('Gemini API key not configured');
+    }
+
+    const requestBody = {
+      content: {
+        parts: [
+          {
+            text: text
+          }
+        ]
+      }
+    };
+
+    this.logger.debug(`Generating embedding for text: ${text.substring(0, 50)}...`);
+
+    const response = await fetch(`${this.geminiEmbeddingUrl}?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      this.logger.error(`Gemini embedding error: ${response.status} - ${errorText}`);
+      throw new BadRequestException(`Failed to generate embedding: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.embedding || !data.embedding.values) {
+      this.logger.error('Invalid embedding response structure from Gemini API');
+      throw new BadRequestException('Invalid Gemini embedding response');
+    }
+
+    return data.embedding.values;
   }
 }

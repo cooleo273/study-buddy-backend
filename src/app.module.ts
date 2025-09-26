@@ -11,6 +11,7 @@ import { AiModule } from './ai/ai.module';
 import { LearningPlansModule } from './learning-plans/learning-plans.module';
 import { YouTubeModule } from './youtube/youtube.module';
 import { GamificationModule } from './gamification/gamification.module';
+import { DocumentModule } from './document/document.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { GamificationModule } from './gamification/gamification.module';
     LearningPlansModule,
     YouTubeModule,
     GamificationModule,
+    DocumentModule,
   ],
 })
 export class AppModule {}

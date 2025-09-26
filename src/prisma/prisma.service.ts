@@ -99,6 +99,23 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prisma?.userBadge || {};
   }
 
+  get document() {
+    return this.prisma?.document || {};
+  }
+
+  get documentChunk() {
+    return this.prisma?.documentChunk || {};
+  }
+
+  get generatedQuestion() {
+    return this.prisma?.generatedQuestion || {};
+  }
+
+  get $queryRaw() {
+    const queryRaw = this.prisma?.$queryRaw;
+    return queryRaw ? queryRaw.bind(this.prisma) : (async () => {});
+  }
+
   get $transaction() {
     const tx = this.prisma?.$transaction;
     return tx ? tx.bind(this.prisma) : (async () => {});

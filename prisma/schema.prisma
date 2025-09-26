@@ -1,11 +1,13 @@
 // schema.prisma
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
 }
 
 model User {
@@ -23,6 +25,7 @@ model User {
   learningPlans  LearningPlan[]
   quizAttempts   QuizAttempt[]
   badges         UserBadge[]
+  generatedQuestions GeneratedQuestion[]
 }
 
 model ChatSession {
@@ -187,4 +190,45 @@ model UserBadge {
   badge    Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
 
   @@unique([userId, badgeId])
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  title       String
+  content     String?  // Full text content
+  type        String   // 'book', 'past_question'
+  grade       Int?     // 9-12 for Ethiopian curriculum
+  subject     String?
+  uploadedAt  DateTime @default(now())
+  chunks      DocumentChunk[]
+
+  @@index([type, grade, subject])
+}
+
+model DocumentChunk {
+  id          String   @id @default(uuid())
+  documentId  String
+  content     String   // Chunked text content
+  embedding   Unsupported("vector(768)")?  // Gemini text-embedding-004 dimension
+  chunkIndex  Int
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model GeneratedQuestion {
+  id          String   @id @default(uuid())
+  userId      String
+  question    String
+  answer      String   // Legacy field for backward compatibility
+  options     Json?    // Array of multiple choice options
+  correctAnswer String? // Correct answer (letter for MCQ, text for others)
+  explanation String?  // Explanation of the answer
+  subject     String?
+  grade       Int?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
