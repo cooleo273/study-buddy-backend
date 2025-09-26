@@ -28,11 +28,20 @@ export class DocumentController {
     @Body() dto: UploadDocumentDto,
     @Request() req: any,
   ) {
-    console.log('Upload attempt:', {
-      file: file ? { name: file.originalname, size: file.size, mimetype: file.mimetype } : null,
-      dto,
-      user: req.user
-    });
+    console.log('=== UPLOAD ATTEMPT DEBUG ===');
+    console.log('File:', file ? {
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      encoding: file.encoding,
+      mimetype: file.mimetype,
+      size: file.size,
+      buffer: file.buffer ? `Buffer(${file.buffer.length} bytes)` : null
+    } : 'NO FILE');
+    console.log('Raw body:', req.body);
+    console.log('DTO after transform:', dto);
+    console.log('User:', req.user);
+    console.log('=== END DEBUG ===');
+
     return this.documentService.uploadDocument(file, dto);
   }
 
