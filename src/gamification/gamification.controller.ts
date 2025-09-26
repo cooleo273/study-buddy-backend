@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Post, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GamificationService } from './gamification.service';
@@ -14,10 +14,8 @@ export class GamificationController {
   @Get('stats')
   @ApiOperation({ summary: 'Get user gamification stats' })
   @ApiResponse({ status: 200, description: 'User stats retrieved successfully', type: UserStatsResponseDto })
-  async getUserStats(@Param('userId') userId: string): Promise<UserStatsResponseDto> {
-    // Note: In a real app, you'd get userId from JWT token, not param
-    // For now, assuming it's passed or extracted from guard
-    return this.gamificationService.getUserStats(userId);
+  async getUserStats(@Request() req): Promise<UserStatsResponseDto> {
+    return this.gamificationService.getUserStats(req.user.id);
   }
 
   @Get('leaderboard')
