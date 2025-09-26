@@ -62,27 +62,40 @@ export class DocumentService {
   }
 
   private chunkText(text: string): string[] {
-    // Simple chunking: split by paragraphs, then by sentences if too long
+    // Simple chunking: split by paragraphs, then combine into larger chunks
     const paragraphs = text.split('\n\n').filter(p => p.trim().length > 50);
 
     const chunks: string[] = [];
+    let currentChunk = '';
+
     for (const paragraph of paragraphs) {
-      if (paragraph.length <= 1000) {
-        chunks.push(paragraph.trim());
+      // If adding this paragraph would exceed 2500 characters, save current chunk
+      if (currentChunk && (currentChunk + '\n\n' + paragraph).length > 2500) {
+        chunks.push(currentChunk.trim());
+        currentChunk = paragraph;
       } else {
-        // Split long paragraphs into sentences
-        const sentences = paragraph.split(/[.!?]+/).filter(s => s.trim().length > 20);
-        let currentChunk = '';
-        for (const sentence of sentences) {
-          if ((currentChunk + sentence).length > 800) {
-            if (currentChunk) chunks.push(currentChunk.trim());
-            currentChunk = sentence.trim();
-          } else {
-            currentChunk += (currentChunk ? ' ' : '') + sentence.trim();
-          }
-        }
-        if (currentChunk) chunks.push(currentChunk.trim());
+        // Add paragraph to current chunk
+        currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
       }
+    }
+
+    // Add the last chunk
+    if (currentChunk) {
+      chunks.push(currentChunk.trim());
+    }
+
+    // Limit to maximum 100 chunks to avoid timeout
+    if (chunks.length > 100) {
+      console.log(`Limiting chunks from ${chunks.length} to 100`);
+      const limitedChunks: string[] = [];
+      const chunkSize = Math.ceil(chunks.length / 100);
+
+      for (let i = 0; i < chunks.length; i += chunkSize) {
+        const combinedChunk = chunks.slice(i, i + chunkSize).join('\n\n');
+        limitedChunks.push(combinedChunk);
+      }
+
+      return limitedChunks.slice(0, 100);
     }
 
     return chunks;
