@@ -11,7 +11,7 @@ export class DocumentController {
   constructor(private readonly documentService: DocumentService) {}
 
   @Post('upload')
-  // @UseGuards(AdminGuard) // Temporarily disabled for debugging
+  @UseGuards(AdminGuard)
   @UseInterceptors(FileInterceptor('file', {
     limits: {
       fileSize: 15 * 1024 * 1024, // 15MB limit
@@ -28,21 +28,6 @@ export class DocumentController {
     @Body() dto: UploadDocumentDto,
     @Request() req: any,
   ) {
-    console.log('=== UPLOAD ATTEMPT DEBUG ===');
-    console.log('File:', file ? {
-      fieldname: file.fieldname,
-      originalname: file.originalname,
-      encoding: file.encoding,
-      mimetype: file.mimetype,
-      size: file.size,
-      buffer: file.buffer ? `Buffer(${file.buffer.length} bytes)` : null
-    } : 'NO FILE');
-    console.log('Raw body keys:', Object.keys(req.body));
-    console.log('Raw body values:', req.body);
-    console.log('DTO after transform:', dto);
-    console.log('User:', req.user);
-    console.log('=== END DEBUG ===');
-
     return this.documentService.uploadDocument(file, dto);
   }
 

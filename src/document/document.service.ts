@@ -15,29 +15,20 @@ export class DocumentService {
     file: Express.Multer.File,
     dto: UploadDocumentDto,
   ) {
-    console.log('=== SERVICE: UPLOAD START ===');
-    console.log('Service received file:', file ? `File: ${file.originalname} (${file.size} bytes)` : 'NO FILE');
-    console.log('Service received DTO:', dto);
-
     if (!file || !file.buffer) {
-      console.log('ERROR: No file provided');
       throw new BadRequestException('No file provided');
     }
 
     // Extract text from PDF
     let textContent: string;
     try {
-      console.log('Starting PDF parsing...');
       const data = await pdfParse(file.buffer);
       textContent = data.text;
-      console.log(`PDF parsed successfully. Text length: ${textContent.length} characters`);
     } catch (error) {
-      console.log('ERROR: Failed to parse PDF:', error);
       throw new BadRequestException('Failed to parse PDF file');
     }
 
     // Create document record
-    console.log('Creating document record in database...');
     const document = await this.prisma.document.create({
       data: {
         title: dto.title,
@@ -47,24 +38,16 @@ export class DocumentService {
         subject: dto.subject,
       },
     });
-    console.log('Document created successfully:', { id: document.id, title: document.title });
 
     // Chunk the text and create embeddings
-    console.log('Starting document chunking and embedding...');
     await this.processDocumentChunks(document.id, textContent);
 
-    console.log('=== SERVICE: UPLOAD COMPLETE ===');
     return document;
   }
 
   private async processDocumentChunks(documentId: string, text: string) {
-    console.log('=== CHUNKING START ===');
     const chunks = this.chunkText(text);
-    console.log(`Text chunked into ${chunks.length} chunks`);
-
-    console.log('Generating embeddings...');
     const embeddings = await this.generateEmbeddings(chunks);
-    console.log(`Generated ${embeddings.length} embeddings`);
 
     const chunkData = chunks.map((chunk, index) => ({
       documentId,
@@ -73,11 +56,9 @@ export class DocumentService {
       chunkIndex: index,
     }));
 
-    console.log('Inserting chunks into database...');
     await this.prisma.documentChunk.createMany({
       data: chunkData,
     });
-    console.log('=== CHUNKING COMPLETE ===');
   }
 
   private chunkText(text: string): string[] {
@@ -108,26 +89,20 @@ export class DocumentService {
   }
 
   private async generateEmbeddings(texts: string[]): Promise<number[][]> {
-    console.log(`=== EMBEDDING GENERATION START: ${texts.length} texts ===`);
     // Use Gemini for embeddings
     const embeddings: number[][] = [];
 
-    for (let i = 0; i < texts.length; i++) {
-      const text = texts[i];
+    for (const text of texts) {
       try {
-        console.log(`Generating embedding ${i + 1}/${texts.length}...`);
         const embedding = await this.aiService.generateEmbedding(text);
         embeddings.push(embedding);
-        console.log(`Embedding ${i + 1} generated successfully`);
       } catch (error) {
-        console.error(`ERROR: Failed to generate embedding ${i + 1}:`, error);
+        console.error('Failed to generate embedding:', error);
         // Use zero vector as fallback
         embeddings.push(new Array(768).fill(0));
-        console.log(`Using fallback zero vector for embedding ${i + 1}`);
       }
     }
 
-    console.log('=== EMBEDDING GENERATION COMPLETE ===');
     return embeddings;
   }
 
