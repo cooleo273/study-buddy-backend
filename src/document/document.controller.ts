@@ -37,7 +37,8 @@ export class DocumentController {
       size: file.size,
       buffer: file.buffer ? `Buffer(${file.buffer.length} bytes)` : null
     } : 'NO FILE');
-    console.log('Raw body:', req.body);
+    console.log('Raw body keys:', Object.keys(req.body));
+    console.log('Raw body values:', req.body);
     console.log('DTO after transform:', dto);
     console.log('User:', req.user);
     console.log('=== END DEBUG ===');
