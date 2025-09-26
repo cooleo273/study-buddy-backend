@@ -24,7 +24,14 @@ export class DocumentService {
     try {
       const data = await pdfParse(file.buffer);
       textContent = data.text;
+      console.log(`Extracted text length: ${textContent.length}`);
+      if (textContent.length === 0) {
+        throw new BadRequestException('PDF contains no extractable text. Please upload a text-based PDF, not scanned images.');
+      }
     } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       throw new BadRequestException('Failed to parse PDF file');
     }
 

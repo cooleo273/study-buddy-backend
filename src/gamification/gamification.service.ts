@@ -100,6 +100,34 @@ export class GamificationService implements OnModuleInit {
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         return (user?.streakCount || 0) >= (criteria.count || 1);
 
+      case 'quiz_attempted':
+        const attemptCount = await this.prisma.quizAttempt.count({
+          where: { userId },
+        });
+        return attemptCount >= (criteria.count || 1);
+
+      case 'learning_plans_created':
+        const planCount = await this.prisma.learningPlan.count({
+          where: { userId },
+        });
+        return planCount >= (criteria.count || 1);
+
+      case 'chat_sessions_created':
+        const chatCount = await this.prisma.chatSession.count({
+          where: { userId },
+        });
+        return chatCount >= (criteria.count || 1);
+
+      case 'questions_generated':
+        const questionCount = await this.prisma.generatedQuestion.count({
+          where: { userId },
+        });
+        return questionCount >= (criteria.count || 1);
+
+      case 'points_earned':
+        const userForPoints = await this.prisma.user.findUnique({ where: { id: userId } });
+        return (userForPoints?.points || 0) >= (criteria.count || 1);
+
       default:
         return false;
     }
@@ -229,6 +257,367 @@ export class GamificationService implements OnModuleInit {
         icon: '📚',
         points: 50,
         criteria: { type: 'course_completed', count: 10 },
+      },
+      {
+        name: 'Scholar',
+        description: 'Complete 5 courses',
+        icon: '🎓',
+        points: 30,
+        criteria: { type: 'course_completed', count: 5 },
+      },
+      {
+        name: 'Quiz Champion',
+        description: 'Pass 5 quizzes',
+        icon: '🏆',
+        points: 40,
+        criteria: { type: 'quiz_passed', count: 5 },
+      },
+      {
+        name: 'Consistency King',
+        description: 'Maintain a 10-day learning streak',
+        icon: '👑',
+        points: 60,
+        criteria: { type: 'streak', count: 10 },
+      },
+      {
+        name: 'Plan Maker',
+        description: 'Create 3 learning plans',
+        icon: '📝',
+        points: 35,
+        criteria: { type: 'learning_plans_created', count: 3 },
+      },
+      {
+        name: 'Chat Enthusiast',
+        description: 'Create 10 chat sessions',
+        icon: '💬',
+        points: 45,
+        criteria: { type: 'chat_sessions_created', count: 10 },
+      },
+      {
+        name: 'Question Generator',
+        description: 'Generate 20 questions',
+        icon: '❓',
+        points: 55,
+        criteria: { type: 'questions_generated', count: 20 },
+      },
+      {
+        name: 'Point Collector',
+        description: 'Earn 100 points',
+        icon: '💎',
+        points: 20,
+        criteria: { type: 'points_earned', count: 100 },
+      },
+      {
+        name: 'Master Learner',
+        description: 'Complete 25 courses',
+        icon: '🎓',
+        points: 100,
+        criteria: { type: 'course_completed', count: 25 },
+      },
+      {
+        name: 'Quiz Expert',
+        description: 'Pass 10 quizzes',
+        icon: '🧠',
+        points: 75,
+        criteria: { type: 'quiz_passed', count: 10 },
+      },
+      {
+        name: 'Streak Master',
+        description: 'Maintain a 30-day learning streak',
+        icon: '🔥',
+        points: 150,
+        criteria: { type: 'streak', count: 30 },
+      },
+      {
+        name: 'Top Contributor',
+        description: 'Earn 500 points',
+        icon: '⭐',
+        points: 50,
+        criteria: { type: 'points_earned', count: 500 },
+      },
+      // Smaller badges
+      {
+        name: 'Chat Starter',
+        description: 'Create your first chat session',
+        icon: '💬',
+        points: 5,
+        criteria: { type: 'chat_sessions_created', count: 1 },
+      },
+      {
+        name: 'Plan Beginner',
+        description: 'Create your first learning plan',
+        icon: '📝',
+        points: 8,
+        criteria: { type: 'learning_plans_created', count: 1 },
+      },
+      {
+        name: 'Question Beginner',
+        description: 'Generate your first 5 questions',
+        icon: '❓',
+        points: 10,
+        criteria: { type: 'questions_generated', count: 5 },
+      },
+      {
+        name: 'Streak Starter',
+        description: 'Maintain a 1-day learning streak',
+        icon: '🔥',
+        points: 5,
+        criteria: { type: 'streak', count: 1 },
+      },
+      {
+        name: 'Quiz Taker',
+        description: 'Attempt your first quiz',
+        icon: '🧠',
+        points: 5,
+        criteria: { type: 'quiz_attempted', count: 1 },
+      },
+      {
+        name: 'Consistent Learner',
+        description: 'Maintain a 3-day learning streak',
+        icon: '🔥',
+        points: 15,
+        criteria: { type: 'streak', count: 3 },
+      },
+      {
+        name: 'Chat Lover',
+        description: 'Create 5 chat sessions',
+        icon: '💬',
+        points: 20,
+        criteria: { type: 'chat_sessions_created', count: 5 },
+      },
+      {
+        name: 'Question Enthusiast',
+        description: 'Generate 10 questions',
+        icon: '❓',
+        points: 25,
+        criteria: { type: 'questions_generated', count: 10 },
+      },
+      {
+        name: 'Plan Creator',
+        description: 'Create 5 learning plans',
+        icon: '📝',
+        points: 45,
+        criteria: { type: 'learning_plans_created', count: 5 },
+      },
+      // Bigger, harder badges
+      {
+        name: 'Ultimate Scholar',
+        description: 'Complete 50 courses',
+        icon: '🎓',
+        points: 200,
+        criteria: { type: 'course_completed', count: 50 },
+      },
+      {
+        name: 'Quiz Grandmaster',
+        description: 'Pass 25 quizzes',
+        icon: '🏆',
+        points: 150,
+        criteria: { type: 'quiz_passed', count: 25 },
+      },
+      {
+        name: 'Legendary Streak',
+        description: 'Maintain a 60-day learning streak',
+        icon: '🔥',
+        points: 300,
+        criteria: { type: 'streak', count: 60 },
+      },
+      {
+        name: 'Chat Guru',
+        description: 'Create 50 chat sessions',
+        icon: '💬',
+        points: 100,
+        criteria: { type: 'chat_sessions_created', count: 50 },
+      },
+      {
+        name: 'Question Master',
+        description: 'Generate 100 questions',
+        icon: '❓',
+        points: 120,
+        criteria: { type: 'questions_generated', count: 100 },
+      },
+      {
+        name: 'Point Hoarder',
+        description: 'Earn 1000 points',
+        icon: '💰',
+        points: 100,
+        criteria: { type: 'points_earned', count: 1000 },
+      },
+      {
+        name: 'Plan Architect',
+        description: 'Create 10 learning plans',
+        icon: '🏗️',
+        points: 80,
+        criteria: { type: 'learning_plans_created', count: 10 },
+      },
+      {
+        name: 'Quiz Virtuoso',
+        description: 'Pass 50 quizzes',
+        icon: '🧠',
+        points: 250,
+        criteria: { type: 'quiz_passed', count: 50 },
+      },
+      {
+        name: 'Eternal Flame',
+        description: 'Maintain a 100-day learning streak',
+        icon: '🔥',
+        points: 500,
+        criteria: { type: 'streak', count: 100 },
+      },
+      // Additional milestone badges
+      {
+        name: 'Course Explorer',
+        description: 'Complete 3 courses',
+        icon: '🗺️',
+        points: 20,
+        criteria: { type: 'course_completed', count: 3 },
+      },
+      {
+        name: 'Quiz Warrior',
+        description: 'Pass 3 quizzes',
+        icon: '⚔️',
+        points: 25,
+        criteria: { type: 'quiz_passed', count: 3 },
+      },
+      {
+        name: 'Week Warrior',
+        description: 'Maintain a 7-day learning streak',
+        icon: '📅',
+        points: 35,
+        criteria: { type: 'streak', count: 7 },
+      },
+      {
+        name: 'Chat Explorer',
+        description: 'Create 3 chat sessions',
+        icon: '💭',
+        points: 15,
+        criteria: { type: 'chat_sessions_created', count: 3 },
+      },
+      {
+        name: 'Question Creator',
+        description: 'Generate 15 questions',
+        icon: '✏️',
+        points: 30,
+        criteria: { type: 'questions_generated', count: 15 },
+      },
+      {
+        name: 'Plan Enthusiast',
+        description: 'Create 7 learning plans',
+        icon: '📋',
+        points: 55,
+        criteria: { type: 'learning_plans_created', count: 7 },
+      },
+      {
+        name: 'Knowledge Builder',
+        description: 'Complete 15 courses',
+        icon: '🏗️',
+        points: 70,
+        criteria: { type: 'course_completed', count: 15 },
+      },
+      {
+        name: 'Quiz Specialist',
+        description: 'Pass 15 quizzes',
+        icon: '🎯',
+        points: 85,
+        criteria: { type: 'quiz_passed', count: 15 },
+      },
+      {
+        name: 'Month Master',
+        description: 'Maintain a 30-day learning streak',
+        icon: '🗓️',
+        points: 120,
+        criteria: { type: 'streak', count: 30 },
+      },
+      {
+        name: 'Chat Master',
+        description: 'Create 25 chat sessions',
+        icon: '🗣️',
+        points: 65,
+        criteria: { type: 'chat_sessions_created', count: 25 },
+      },
+      {
+        name: 'Question Expert',
+        description: 'Generate 50 questions',
+        icon: '📝',
+        points: 90,
+        criteria: { type: 'questions_generated', count: 50 },
+      },
+      {
+        name: 'Plan Master',
+        description: 'Create 15 learning plans',
+        icon: '🎯',
+        points: 95,
+        criteria: { type: 'learning_plans_created', count: 15 },
+      },
+      {
+        name: 'Century Scholar',
+        description: 'Complete 100 courses',
+        icon: '💯',
+        points: 400,
+        criteria: { type: 'course_completed', count: 100 },
+      },
+      {
+        name: 'Quiz Legend',
+        description: 'Pass 100 quizzes',
+        icon: '👑',
+        points: 350,
+        criteria: { type: 'quiz_passed', count: 100 },
+      },
+      {
+        name: 'Immortal Streak',
+        description: 'Maintain a 365-day learning streak',
+        icon: '♾️',
+        points: 1000,
+        criteria: { type: 'streak', count: 365 },
+      },
+      {
+        name: 'Chat Legend',
+        description: 'Create 100 chat sessions',
+        icon: '🎙️',
+        points: 200,
+        criteria: { type: 'chat_sessions_created', count: 100 },
+      },
+      {
+        name: 'Question Legend',
+        description: 'Generate 500 questions',
+        icon: '🧙',
+        points: 300,
+        criteria: { type: 'questions_generated', count: 500 },
+      },
+      {
+        name: 'Plan Legend',
+        description: 'Create 25 learning plans',
+        icon: '🏆',
+        points: 150,
+        criteria: { type: 'learning_plans_created', count: 25 },
+      },
+      {
+        name: 'Point Millionaire',
+        description: 'Earn 2500 points',
+        icon: '💵',
+        points: 200,
+        criteria: { type: 'points_earned', count: 2500 },
+      },
+      {
+        name: 'Point Billionaire',
+        description: 'Earn 5000 points',
+        icon: '🏦',
+        points: 500,
+        criteria: { type: 'points_earned', count: 5000 },
+      },
+      // Special combination badges
+      {
+        name: 'Well Rounded',
+        description: 'Complete 5 courses, pass 5 quizzes, and maintain a 5-day streak',
+        icon: '🎪',
+        points: 75,
+        criteria: { type: 'course_completed', count: 5 }, // Note: This would need a more complex criteria system
+      },
+      {
+        name: 'Social Learner',
+        description: 'Create 10 chat sessions and 10 learning plans',
+        icon: '👥',
+        points: 80,
+        criteria: { type: 'chat_sessions_created', count: 10 }, // Simplified for now
       },
     ];
 
