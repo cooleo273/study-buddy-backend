@@ -54,7 +54,7 @@ export class DocumentService {
     for (let i = 0; i < chunks.length; i++) {
       const embeddingString = `[${embeddings[i].join(',')}]`;
       await this.prisma.$executeRaw`
-        INSERT INTO "document_chunks" ("id", "documentId", "content", "embedding", "chunkIndex")
+        INSERT INTO "DocumentChunk" ("id", "documentId", "content", "embedding", "chunkIndex")
         VALUES (gen_random_uuid(), ${documentId}, ${chunks[i]}, ${embeddingString}::vector(768), ${i})
       `;
       if ((i + 1) % 10 === 0) {
@@ -132,7 +132,7 @@ export class DocumentService {
       { id: string; content: string; similarity: number }[]
     >`
       SELECT id, content, 1 - (embedding <=> ${queryEmbedding}::vector) as similarity
-      FROM "document_chunks"
+      FROM "DocumentChunk"
       WHERE 1 - (embedding <=> ${queryEmbedding}::vector) > 0.7
       ORDER BY embedding <=> ${queryEmbedding}::vector
       LIMIT 5
