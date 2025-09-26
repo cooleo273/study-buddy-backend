@@ -25,9 +25,11 @@ export class YouTubeService {
       this.logger.warn('YOUTUBE_API_KEY not found in environment variables');
     }
 
+    // Use API key authentication
+    const auth = google.auth.fromAPIKey(apiKey);
     this.youtube = google.youtube({
       version: 'v3',
-      auth: apiKey,
+      auth: auth,
     });
   }
 
