@@ -30,11 +30,11 @@
     isActive?: boolean;
 
     @ApiProperty({
-        description: 'Whether the user account is verified',
-        example: true,
-        required: false,
+        description: 'User role',
+        example: 'user',
+        enum: ['user', 'admin'],
     })
-    isVerified?: boolean;
+    role: string;
     }
 
     /**

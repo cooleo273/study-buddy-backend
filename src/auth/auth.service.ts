@@ -26,13 +26,14 @@ export class AuthService {
           id: true,
           email: true,
           username: true,
+          role: true,
           createdAt: true
         },
       });
 
       // Generate tokens
-      const payload = { userId: user.id, email: user.email, type: 'access' };
-      const refreshPayload = { userId: user.id, email: user.email, type: 'refresh' };
+      const payload = { userId: user.id, email: user.email, role: user.role || 'user', type: 'access' };
+      const refreshPayload = { userId: user.id, email: user.email, role: user.role || 'user', type: 'refresh' };
       const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' } as any);
       const refreshToken = this.jwtService.sign(refreshPayload, { expiresIn: '7d' } as any);
 
@@ -41,6 +42,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.username || user.email.split('@')[0],
+        role: user.role || 'user',
       };
 
       return {
@@ -68,8 +70,8 @@ export class AuthService {
     console.log('JWT_SECRET length:', process.env.JWT_SECRET?.length);
 
     // Generate tokens
-    const accessPayload = { userId: user.id, email: user.email, type: 'access' };
-    const refreshPayload = { userId: user.id, email: user.email, type: 'refresh' };
+    const accessPayload = { userId: user.id, email: user.email, role: user.role || 'user', type: 'access' };
+    const refreshPayload = { userId: user.id, email: user.email, role: user.role || 'user', type: 'refresh' };
     const accessToken = this.jwtService.sign(accessPayload, { expiresIn: '15m' } as any);
     const refreshToken = this.jwtService.sign(refreshPayload, { expiresIn: '7d' } as any);
 
@@ -78,6 +80,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.username || user.email.split('@')[0],
+      role: user.role || 'user',
     };
 
     return {
@@ -107,8 +110,8 @@ export class AuthService {
       }
 
       // Generate new tokens
-      const newPayload = { userId: user.id, email: user.email, type: 'access' };
-      const newRefreshPayload = { userId: user.id, email: user.email, type: 'refresh' };
+      const newPayload = { userId: user.id, email: user.email, role: user.role || 'user', type: 'access' };
+      const newRefreshPayload = { userId: user.id, email: user.email, role: user.role || 'user', type: 'refresh' };
       const accessToken = this.jwtService.sign(newPayload, { expiresIn: '15m' } as any);
       const newRefreshToken = this.jwtService.sign(newRefreshPayload, { expiresIn: '7d' } as any);
 
@@ -117,6 +120,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.username || user.email.split('@')[0],
+        role: user.role || 'user',
       };
 
       return {
@@ -127,5 +131,20 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  async promoteToAdmin(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: 'admin' },
+    });
   }
 }

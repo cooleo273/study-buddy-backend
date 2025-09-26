@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Body, UploadedFile, UseInterceptors, UseGuards, Request } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 import { DocumentService } from './document.service';
 import { UploadDocumentDto, GenerateQuestionDto } from './dto/document.dto';
 
@@ -10,6 +11,7 @@ export class DocumentController {
   constructor(private readonly documentService: DocumentService) {}
 
   @Post('upload')
+  @UseGuards(AdminGuard)
   @UseInterceptors(FileInterceptor('file'))
   async uploadDocument(
     @UploadedFile() file: Express.Multer.File,
@@ -29,5 +31,11 @@ export class DocumentController {
   @Get('my-questions')
   async getUserQuestions(@Request() req: any) {
     return this.documentService.getUserQuestions(req.user.id);
+  }
+
+  @Get('list')
+  @UseGuards(AdminGuard)
+  async getDocuments() {
+    return this.documentService.getDocuments();
   }
 }

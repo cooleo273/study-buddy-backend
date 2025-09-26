@@ -1,6 +1,8 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { AdminGuard } from './admin.guard';
 import { SignupDto } from './dto/signup.dto';
 import { SigninDto } from './dto/signin.dto';
 import { JwtAuthResponseDto } from './dto/auth-response.dto';
@@ -33,5 +35,17 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refresh(@Body() dto: RefreshTokenDto): Promise<JwtAuthResponseDto> {
     return this.authService.refreshToken(dto.refreshToken);
+  }
+
+  @Post('admin/promote/:userId')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Promote user to admin (Admin only)' })
+  @ApiResponse({ status: 200, description: 'User promoted to admin successfully' })
+  @ApiResponse({ status: 403, description: 'Admin access required' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async promoteToAdmin(@Param('userId') userId: string) {
+    await this.authService.promoteToAdmin(userId);
+    return { message: 'User promoted to admin successfully' };
   }
 }

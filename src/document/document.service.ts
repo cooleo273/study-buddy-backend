@@ -216,4 +216,15 @@ Explanation: Paris is the capital and most populous city of France.`;
       createdAt: q.createdAt,
     }));
   }
+
+  async getDocuments() {
+    return this.prisma.document.findMany({
+      orderBy: { uploadedAt: 'desc' },
+      include: {
+        _count: {
+          select: { chunks: true }
+        }
+      }
+    });
+  }
 }
