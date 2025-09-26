@@ -5,32 +5,32 @@ import { GenerateRequestDto, GenerateResponseDto } from './dto/ai.dto';
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly geminiModel = 'gemini-1.5-flash';
+  private readonly geminiModel = 'gemini-2.0-flash-lite';
   private readonly geminiEmbeddingModel = 'text-embedding-004';
   private readonly geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent`;
   private readonly geminiEmbeddingUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiEmbeddingModel}:embedContent`;
   private readonly groqApiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly groqModel = 'openai/gpt-oss-20b';
+  private readonly groqModel = 'llama-3.1-8b-instant';
 
   constructor(private configService: ConfigService) {}
 
   async generateContent(dto: GenerateRequestDto): Promise<GenerateResponseDto> {
     console.log('AI Service called with:', { message: dto.message.substring(0, 50), hasSystemPrompt: !!dto.systemPrompt });
 
-    // Try Groq first since Gemini is rate limited
+    // Try Gemini first since it's reliable and user has access
     try {
-      console.log('Trying Groq API first...');
-      return await this.generateWithGroq(dto);
+      console.log('Trying Gemini API first...');
+      return await this.generateWithGemini(dto);
     } catch (error) {
-      console.log(`Groq failed: ${error.message}, trying Gemini...`);
-      this.logger.warn(`Groq failed, trying Gemini: ${error.message}`);
-      // Fallback to Gemini
+      console.log(`Gemini failed: ${error.message}, trying Groq...`);
+      this.logger.warn(`Gemini failed, trying Groq: ${error.message}`);
+      // Fallback to Groq
       try {
-        console.log('Trying Gemini API...');
-        return await this.generateWithGemini(dto);
-      } catch (geminiError) {
-        console.log(`Both APIs failed. Groq: ${error.message}, Gemini: ${geminiError.message}`);
-        this.logger.error(`Both Groq and Gemini failed. Groq: ${error.message}, Gemini: ${geminiError.message}`);
+        console.log('Trying Groq API...');
+        return await this.generateWithGroq(dto);
+      } catch (groqError) {
+        console.log(`Both APIs failed. Gemini: ${error.message}, Groq: ${groqError.message}`);
+        this.logger.error(`Both Gemini and Groq failed. Gemini: ${error.message}, Groq: ${groqError.message}`);
         throw new BadRequestException('All AI services are currently unavailable');
       }
     }
