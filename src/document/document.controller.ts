@@ -12,7 +12,17 @@ export class DocumentController {
 
   @Post('upload')
   @UseGuards(AdminGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', {
+    limits: {
+      fileSize: 15 * 1024 * 1024, // 15MB limit
+    },
+    fileFilter: (req, file, callback) => {
+      if (!file.mimetype.includes('pdf')) {
+        return callback(new Error('Only PDF files are allowed!'), false);
+      }
+      callback(null, true);
+    },
+  }))
   async uploadDocument(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadDocumentDto,

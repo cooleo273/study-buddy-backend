@@ -1,13 +1,15 @@
-import { IsString, IsOptional, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsInt, Min, Max, IsEnum } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UploadDocumentDto {
   @IsString()
   title: string;
 
-  @IsString()
+  @IsEnum(['book', 'past_question'])
   type: 'book' | 'past_question';
 
   @IsOptional()
+  @Transform(({ value }) => parseInt(value))
   @IsInt()
   @Min(9)
   @Max(12)
