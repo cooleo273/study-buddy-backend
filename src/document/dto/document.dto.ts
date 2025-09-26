@@ -5,7 +5,7 @@ export class UploadDocumentDto {
   @IsString()
   title: string;
 
-  @IsEnum(['book', 'past_question'])
+  @IsString()
   type: 'book' | 'past_question';
 
   @IsOptional()
