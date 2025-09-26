@@ -167,6 +167,8 @@ Explanation: Paris is the capital and most populous city of France.`;
       systemPrompt: 'You are an expert educator creating high-quality multiple choice examination questions. Always follow the exact format specified.',
     });
 
+    console.log('AI Response for question generation:', response.response);
+
     // Parse the response
     const lines = response.response.split('\n').map(line => line.trim()).filter(line => line);
     
