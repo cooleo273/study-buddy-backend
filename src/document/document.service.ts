@@ -47,6 +47,7 @@ export class DocumentService {
 
   private async processDocumentChunks(documentId: string, text: string) {
     const chunks = this.chunkText(text);
+    console.log(`Processing ${chunks.length} chunks for document ${documentId}`);
     const embeddings = await this.generateEmbeddings(chunks);
 
     const chunkData = chunks.map((chunk, index) => ({
@@ -56,9 +57,16 @@ export class DocumentService {
       chunkIndex: index,
     }));
 
-    await this.prisma.documentChunk.createMany({
-      data: chunkData,
-    });
+    // Use individual create calls instead of createMany for vector support
+    for (let i = 0; i < chunkData.length; i++) {
+      await this.prisma.documentChunk.create({
+        data: chunkData[i],
+      });
+      if ((i + 1) % 10 === 0) {
+        console.log(`Created ${i + 1}/${chunkData.length} chunks`);
+      }
+    }
+    console.log(`Finished processing chunks for document ${documentId}`);
   }
 
   private chunkText(text: string): string[] {
